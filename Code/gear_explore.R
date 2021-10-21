@@ -9,7 +9,7 @@ summaryfun <- function(x)list(N=length(x),Mean=mean(x),Median=median(x),SD=sd(x)
 #### LMB data #### 
 #lmb_format from script has cpue values only 
 #count_lmb_format has count and effort 
-lmb_dat<-left_join(count_lmb_format, lmb_format)
+#lmb_count_dat has both 
 
 #select out pairs 
 #gill net : electro fishing if > 1 means gill net caught more  
@@ -84,3 +84,11 @@ table2[2,]<-as.data.frame(summaryfun(gill_trap$ratio))
 elec_fyke<-filter(cis_dat, effort_SHOCK > 0 & effort_FT_NET > 0 )
 elec_fyke$ratio<-elec_fyke$SHOCK/elec_fyke$FT_NET
 table2[3,]<-as.data.frame(summaryfun(elec_fyke$ratio))
+
+#### fit a distribution to the data #### 
+install.packages("drc")
+library(drc)
+ggplot(data = dat, aes(x=gill_shock_ratio, y=log(count))) + geom_point()
+out<-glm(count ~ gill_shock_ratio, data=dat, family = poisson)
+
+summary(out)

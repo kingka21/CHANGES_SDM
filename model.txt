@@ -2,21 +2,34 @@
     model {
     # Likelihood: 
     for (i in 1:n){ 
-    y[i] ~ dpois(lambda[i])  # Distribution 
+    y[i] ~ dpois(lambda[i])  # Distribution Poisson  
     log(lambda[i]) <- log.lambda[i] # log-link 
-    log.lambda[i] <- 1 * offset[i] + alpha + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + b[4] * x4[i] + 
-                       b[5] * x5[i] + b[6] * x6[i] + b[7] * x7[i] + b[8] * x8[i] + b[9] * x9[i] + b[10] * x10[i] +
-                      b[11] * x11[i] + b[12] * x12[i]  + b[13] * x13[i] + b[14] * x14[i] 
+    log.lambda[i] <- alpha[group[i]] + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + b[4] * x4[i] + 
+                       b[5] * x5[i] + b[6] * x6[i] + b[7] * x7[i] + b[8]* x8[i] 
+                       
     } 
     
+    # Level-2 of the model 
+    for(j in 1:J){
+    alpha[j] ~ dnorm(mu.alpha,tau.alpha)
+    }
     
     # Priors
-    alpha ~ dnorm(0, 0.0001)
+    mu.alpha ~ dnorm(0, 0.0001)
+    sigma.alpha ~ dunif(0,100)
+    tau.alpha <- pow(sigma.alpha,-2)
     
-    # Level-1 predictors #  horseshoe prior 
-    for(k in 1:14){
-    b[k] ~ dnorm(0,0.0001)
+    # priors for predictors 
+    for(k in 1:3){
+    b[k] ~ dnorm(0,3)
     }
+    
+    # priors for ratios  
+    b[4] ~ dnorm(1.3,2)
+    b[5] ~ dnorm(0.75,1.4)
+    b[6] ~ dnorm(1.4,4)
+    b[7] ~ dnorm(1.2,3)
+    b[8] ~ dnorm(1.5,2.8)
     
     } # end model
     

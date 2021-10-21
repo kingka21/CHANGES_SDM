@@ -8,7 +8,9 @@ model {
   #r ~ dlnorm(0,0.1)
   #mu<- r*(1-p)/p
   mu ~ dlnorm(1, 0.1)	
-  for (k in 1:3) { q[k] ~ dbeta(1,1)    } 
+  for (k in 1:3) { 
+    q[k] ~ dbeta(1,1)   
+    } 
   
   for (i in 1: 218) {
     #	Den[i] ~ dnegbin( p, r)

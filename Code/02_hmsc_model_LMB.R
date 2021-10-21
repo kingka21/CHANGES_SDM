@@ -9,7 +9,94 @@ library(dotwhisker)
 #note that I cant do zero-inflated
 #note that as default, scaling is applied for X, but not for Y matrix
 
-#use data from 03_own_model 
+#### standardize and transform predictor values ####
+lmb_count_dat<-lmb_count_dat %>%
+  ungroup()
+
+##subset into four different gear response variables and remove 0s, select subset of metrics not correlated for analysis and remove NAs #
+dat_shock<-filter(lmb_count_dat, fish_count_SHOCK >0) %>%
+  na.omit()
+dat_fyke<-filter(lmb_count_dat, fish_count_FT_NET >0) %>%
+  na.omit() 
+dat_gill<-filter(lmb_count_dat, fish_count_GILL >0) %>% 
+  na.omit() 
+dat_seine<-filter(lmb_count_dat, fish_count_SEINE >0) %>% 
+  na.omit() 
+
+#your model works on the representation given by its input predictors, differently scaled test/prediction data would potentially lead to over/under-exaggeration of a feature.
+#standardize and transform 
+#shock 
+dat_shock$z_order<-as.numeric(scale(log(dat_shock$lake_order+0.001))) # min is 0 because these are the isolated
+dat_shock$z_lake_area<-as.numeric(scale(log(dat_shock$lake_area_m2))) #good 
+dat_shock$z_perim_km<-as.numeric(scale(log(dat_shock$lake_perim_km))) 
+dat_shock$z_ws_area_km2<-as.numeric(scale(log(dat_shock$ws_area_km2)))  
+dat_shock$z_ws_urban<-as.numeric(scale(asin(sqrt(dat_shock$ws_urban_prop)))) #good
+dat_shock$z_ws_agriculture<-as.numeric(scale(asin(sqrt(dat_shock$ws_agriculture_prop)))) #ok
+dat_shock$z_ws_forest<-as.numeric(scale(asin(sqrt(dat_shock$ws_forest_prop)))) #good
+dat_shock$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat_shock$ws_wetland_prop)))) #good
+dat_shock$z_ws_shrub<-as.numeric(scale(asin(sqrt(dat_shock$ws_shrub_prop)))) #ok
+dat_shock$z_ws_slope<-as.numeric(scale(log(dat_shock$ws_slope_deg + 0.001))) #has 0s so added 0.001 
+dat_shock$z_ws_elevation<-as.numeric(scale(log(dat_shock$ws_mean_elevation_m))) #good 
+dat_shock$z_dd_mean<-as.numeric(scale(log(dat_shock$dd_mean))) #good
+dat_shock$z_houses<-as.numeric(scale(log(dat_shock$houses_km+ 0.001))) #ok 
+dat_shock$z_secchi<-as.numeric(scale(log(dat_shock$secchi_m)))
+dat_shock$z_depth<-as.numeric(scale(log(dat_shock$maxdepth_m)))
+dat_shock$z_geom<-as.numeric(scale(log(dat_shock$geom_ratio)))
+
+#fyke
+dat_fyke$z_order<-as.numeric(scale(log(dat_fyke$lake_order+0.001))) # min is 0 because these are the isolated
+dat_fyke$z_lake_area<-as.numeric(scale(log(dat_fyke$lake_area_m2))) #good 
+dat_fyke$z_perim_km<-as.numeric(scale(log(dat_fyke$lake_perim_km))) 
+dat_fyke$z_ws_area_km2<-as.numeric(scale(log(dat_fyke$ws_area_km2)))  
+dat_fyke$z_ws_urban<-as.numeric(scale(asin(sqrt(dat_fyke$ws_urban_prop)))) #good
+dat_fyke$z_ws_agriculture<-as.numeric(scale(asin(sqrt(dat_fyke$ws_agriculture_prop)))) #ok
+dat_fyke$z_ws_forest<-as.numeric(scale(asin(sqrt(dat_fyke$ws_forest_prop)))) #good
+dat_fyke$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat_fyke$ws_wetland_prop)))) #good
+dat_fyke$z_ws_shrub<-as.numeric(scale(asin(sqrt(dat_fyke$ws_shrub_prop)))) #ok
+dat_fyke$z_ws_slope<-as.numeric(scale(log(dat_fyke$ws_slope_deg + 0.001))) #has 0s so added 0.001 
+dat_fyke$z_ws_elevation<-as.numeric(scale(log(dat_fyke$ws_mean_elevation_m))) #good 
+dat_fyke$z_dd_mean<-as.numeric(scale(log(dat_fyke$dd_mean))) #good
+dat_fyke$z_houses<-as.numeric(scale(log(dat_fyke$houses_km+ 0.001))) #ok 
+dat_fyke$z_secchi<-as.numeric(scale(log(dat_fyke$secchi_m)))
+dat_fyke$z_depth<-as.numeric(scale(log(dat_fyke$maxdepth_m)))
+dat_fyke$z_geom<-as.numeric(scale(log(dat_fyke$geom_ratio)))
+
+#gill 
+dat_gill$z_order<-as.numeric(scale(log(dat_gill$lake_order+0.001))) # min is 0 because these are the isolated
+dat_gill$z_lake_area<-as.numeric(scale(log(dat_gill$lake_area_m2))) #good 
+dat_gill$z_perim_km<-as.numeric(scale(log(dat_gill$lake_perim_km))) 
+dat_gill$z_ws_area_km2<-as.numeric(scale(log(dat_gill$ws_area_km2)))  
+dat_gill$z_ws_urban<-as.numeric(scale(asin(sqrt(dat_gill$ws_urban_prop)))) #good
+dat_gill$z_ws_agriculture<-as.numeric(scale(asin(sqrt(dat_gill$ws_agriculture_prop)))) #ok
+dat_gill$z_ws_forest<-as.numeric(scale(asin(sqrt(dat_gill$ws_forest_prop)))) #good
+dat_gill$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat_gill$ws_wetland_prop)))) #good
+dat_gill$z_ws_shrub<-as.numeric(scale(asin(sqrt(dat_gill$ws_shrub_prop)))) #ok
+dat_gill$z_ws_slope<-as.numeric(scale(log(dat_gill$ws_slope_deg + 0.001))) #has 0s so added 0.001 
+dat_gill$z_ws_elevation<-as.numeric(scale(log(dat_gill$ws_mean_elevation_m))) #good 
+dat_gill$z_dd_mean<-as.numeric(scale(log(dat_gill$dd_mean))) #good
+dat_gill$z_houses<-as.numeric(scale(log(dat_gill$houses_km+ 0.001))) #ok 
+dat_gill$z_secchi<-as.numeric(scale(log(dat_gill$secchi_m)))
+dat_gill$z_depth<-as.numeric(scale(log(dat_gill$maxdepth_m)))
+dat_gill$z_geom<-as.numeric(scale(log(dat_gill$geom_ratio)))
+
+#seine 
+dat_seine$z_order<-as.numeric(scale(log(dat_seine$lake_order+0.001))) # min is 0 because these are the isolated
+dat_seine$z_lake_area<-as.numeric(scale(log(dat_seine$lake_area_m2))) #good 
+dat_seine$z_perim_km<-as.numeric(scale(log(dat_seine$lake_perim_km))) 
+dat_seine$z_ws_area_km2<-as.numeric(scale(log(dat_seine$ws_area_km2)))  
+dat_seine$z_ws_urban<-as.numeric(scale(asin(sqrt(dat_seine$ws_urban_prop)))) #good
+dat_seine$z_ws_agriculture<-as.numeric(scale(asin(sqrt(dat_seine$ws_agriculture_prop)))) #ok
+dat_seine$z_ws_forest<-as.numeric(scale(asin(sqrt(dat_seine$ws_forest_prop)))) #good
+dat_seine$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat_seine$ws_wetland_prop)))) #good
+dat_seine$z_ws_shrub<-as.numeric(scale(asin(sqrt(dat_seine$ws_shrub_prop)))) #ok
+dat_seine$z_ws_slope<-as.numeric(scale(log(dat_seine$ws_slope_deg + 0.001))) #has 0s so added 0.001 
+dat_seine$z_ws_elevation<-as.numeric(scale(log(dat_seine$ws_mean_elevation_m))) #good 
+dat_seine$z_dd_mean<-as.numeric(scale(log(dat_seine$dd_mean))) #good
+dat_seine$z_houses<-as.numeric(scale(log(dat_seine$houses_km+ 0.001))) #ok 
+dat_seine$z_secchi<-as.numeric(scale(log(dat_seine$secchi_m)))
+dat_seine$z_depth<-as.numeric(scale(log(dat_seine$maxdepth_m)))
+dat_seine$z_geom<-as.numeric(scale(log(dat_seine$geom_ratio)))
+
 
 ##### linear models #### 
 # example of HMSC to fit a linear model.
@@ -43,36 +130,36 @@ verbose = 5000 #how frequently we wish to see the progress of the MCMC sampling 
 #same thing as lm  but using the hmsc 
 #shock model 
 Y = as.matrix(log(dat_shock$SHOCK))
-XData = dplyr::select(dat_shock, z_lake_area , z_perim_km, z_order, z_ws_area_km2, z_ws_urban, z_ws_forest, z_ws_agriculture, z_ws_shrub, z_ws_wetland, z_ws_slope, z_ws_elevation, z_dd_mean, z_houses, z_secchi)
+XData = dplyr::select(dat_shock, z_lake_area , z_geom, z_order, z_ws_urban, z_ws_forest, z_ws_agriculture, z_ws_shrub, z_ws_wetland, z_ws_slope, z_ws_elevation, z_dd_mean, z_houses, z_secchi)
 #XData = data.frame(cpue_shock$z_lake_area, cpue_shock$z_perim_km, cpue_shock$z_order, cpue_shock$z_ws_area_km2, cpue_shock$z_ws_urban, cpue_shock$z_ws_forest, cpue_shock$z_ws_agriculture, cpue_shock$z_ws_shrub, cpue_shock$z_ws_wetland, cpue_shock$z_ws_slope, cpue_shock$z_ws_elevation, cpue_shock$z_dd_mean, cpue_shock$z_houses, cpue_shock$z_secchi)
-m_shock = Hmsc(Y = Y, XData = XData, XFormula = ~z_lake_area + z_perim_km+ z_order+ z_ws_area_km2+ z_ws_urban+ z_ws_forest+ z_ws_agriculture+ z_ws_shrub+ z_ws_wetland+ z_ws_slope+ z_ws_elevation+ z_dd_mean+ z_houses+ z_secchi, 
+m_shock = Hmsc(Y = Y, XData = XData, XFormula = ~z_lake_area + z_geom+ z_order+ z_ws_urban+ z_ws_forest+ z_ws_agriculture+ z_ws_shrub+ z_ws_wetland+ z_ws_slope+ z_ws_elevation+ z_dd_mean+ z_houses+ z_secchi, 
          XScale = FALSE, distr = "normal") # this constructs the model object # normal dist for continuous data #alrady scaled my parameters 
 #fit the model
 m_shock_l = sampleMcmc(m_shock, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
 
 #fyke model 
 Y = as.matrix(log(dat_fyke$FT_NET))
-XData = dplyr::select(dat_fyke, z_lake_area , z_perim_km, z_order, z_ws_area_km2, z_ws_urban, z_ws_forest, z_ws_agriculture, z_ws_shrub, z_ws_wetland, z_ws_slope, z_ws_elevation, z_dd_mean, z_houses, z_secchi)
+XData = dplyr::select(dat_fyke, z_lake_area , z_geom, z_order, z_ws_urban, z_ws_forest, z_ws_agriculture, z_ws_shrub, z_ws_wetland, z_ws_slope, z_ws_elevation, z_dd_mean, z_houses, z_secchi)
 #XData = data.frame(cpue_shock$z_lake_area, cpue_shock$z_perim_km, cpue_shock$z_order, cpue_shock$z_ws_area_km2, cpue_shock$z_ws_urban, cpue_shock$z_ws_forest, cpue_shock$z_ws_agriculture, cpue_shock$z_ws_shrub, cpue_shock$z_ws_wetland, cpue_shock$z_ws_slope, cpue_shock$z_ws_elevation, cpue_shock$z_dd_mean, cpue_shock$z_houses, cpue_shock$z_secchi)
-m_fyke = Hmsc(Y = Y, XData = XData, XFormula = ~z_lake_area + z_perim_km+ z_order+ z_ws_area_km2+ z_ws_urban+ z_ws_forest+ z_ws_agriculture+ z_ws_shrub+ z_ws_wetland+ z_ws_slope+ z_ws_elevation+ z_dd_mean+ z_houses+ z_secchi, 
+m_fyke = Hmsc(Y = Y, XData = XData, XFormula = ~z_lake_area + z_geom+ z_order+ z_ws_urban+ z_ws_forest+ z_ws_agriculture+ z_ws_shrub+ z_ws_wetland+ z_ws_slope+ z_ws_elevation+ z_dd_mean+ z_houses+ z_secchi, 
                XScale = FALSE, distr = "normal") # this constructs the model object # normal dist for continuous data #alrady scaled my parameters 
 #fit the model
 m_fyke_l = sampleMcmc(m_fyke, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
 
 #gill model 
 Y = as.matrix(log(dat_gill$GILL))
-XData = dplyr::select(dat_gill, z_lake_area , z_perim_km, z_order, z_ws_area_km2, z_ws_urban, z_ws_forest, z_ws_agriculture, z_ws_shrub, z_ws_wetland, z_ws_slope, z_ws_elevation, z_dd_mean, z_houses, z_secchi)
+XData = dplyr::select(dat_gill, z_lake_area , z_geom, z_order, z_ws_urban, z_ws_forest, z_ws_agriculture, z_ws_shrub, z_ws_wetland, z_ws_slope, z_ws_elevation, z_dd_mean, z_houses, z_secchi)
 #XData = data.frame(cpue_shock$z_lake_area, cpue_shock$z_perim_km, cpue_shock$z_order, cpue_shock$z_ws_area_km2, cpue_shock$z_ws_urban, cpue_shock$z_ws_forest, cpue_shock$z_ws_agriculture, cpue_shock$z_ws_shrub, cpue_shock$z_ws_wetland, cpue_shock$z_ws_slope, cpue_shock$z_ws_elevation, cpue_shock$z_dd_mean, cpue_shock$z_houses, cpue_shock$z_secchi)
-m_gill = Hmsc(Y = Y, XData = XData, XFormula = ~z_lake_area + z_perim_km+ z_order+ z_ws_area_km2+ z_ws_urban+ z_ws_forest+ z_ws_agriculture+ z_ws_shrub+ z_ws_wetland+ z_ws_slope+ z_ws_elevation+ z_dd_mean+ z_houses+ z_secchi, 
+m_gill = Hmsc(Y = Y, XData = XData, XFormula = ~z_lake_area + z_geom+ z_order+ z_ws_urban+ z_ws_forest+ z_ws_agriculture+ z_ws_shrub+ z_ws_wetland+ z_ws_slope+ z_ws_elevation+ z_dd_mean+ z_houses+ z_secchi, 
               XScale = FALSE, distr = "normal") # this constructs the model object # normal dist for continuous data #alrady scaled my parameters 
 #fit the model
 m_gill_l = sampleMcmc(m_gill, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
 
 #seine model 
 Y = as.matrix(log(dat_seine$SEINE))
-XData = dplyr::select(dat_seine, z_lake_area , z_perim_km, z_order, z_ws_area_km2, z_ws_urban, z_ws_forest, z_ws_agriculture, z_ws_shrub, z_ws_wetland, z_ws_slope, z_ws_elevation, z_dd_mean, z_houses, z_secchi)
+XData = dplyr::select(dat_seine, z_lake_area , z_geom, z_order, z_ws_urban, z_ws_forest, z_ws_agriculture, z_ws_shrub, z_ws_wetland, z_ws_slope, z_ws_elevation, z_dd_mean, z_houses, z_secchi)
 #XData = data.frame(cpue_shock$z_lake_area, cpue_shock$z_perim_km, cpue_shock$z_order, cpue_shock$z_ws_area_km2, cpue_shock$z_ws_urban, cpue_shock$z_ws_forest, cpue_shock$z_ws_agriculture, cpue_shock$z_ws_shrub, cpue_shock$z_ws_wetland, cpue_shock$z_ws_slope, cpue_shock$z_ws_elevation, cpue_shock$z_dd_mean, cpue_shock$z_houses, cpue_shock$z_secchi)
-m_seine = Hmsc(Y = Y, XData = XData, XFormula = ~z_lake_area + z_perim_km+ z_order+ z_ws_area_km2+ z_ws_urban+ z_ws_forest+ z_ws_agriculture+ z_ws_shrub+ z_ws_wetland+ z_ws_slope+ z_ws_elevation+ z_dd_mean+ z_houses+ z_secchi, 
+m_seine = Hmsc(Y = Y, XData = XData, XFormula = ~z_lake_area + z_geom+ z_order+ z_ws_urban+ z_ws_forest+ z_ws_agriculture+ z_ws_shrub+ z_ws_wetland+ z_ws_slope+ z_ws_elevation+ z_dd_mean+ z_houses+ z_secchi, 
               XScale = FALSE, distr = "normal") # this constructs the model object # normal dist for continuous data #alrady scaled my parameters 
 #fit the model
 m_seine_l = sampleMcmc(m_seine, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
@@ -88,41 +175,41 @@ seine_post = convertToCodaObject(m_seine_l)
 shock_betas<-MCMCsummary(shock_post$Beta, 
             Rhat = TRUE, 
             n.eff = TRUE, 
-            probs = c(0.1, 0.5, 0.9), 
+            probs = c(0.05, 0.5, 0.95), 
             round = 2)
 shock_betas= shock_betas[-1,]
 
 fyke_betas<-MCMCsummary(fyke_post$Beta, 
                          Rhat = TRUE, 
                          n.eff = TRUE, 
-                         probs = c(0.1, 0.5, 0.9), 
+                         probs = c(0.05, 0.5, 0.95), 
                          round = 2)
 fyke_betas= fyke_betas[-1,]
 
 gill_betas<-MCMCsummary(gill_post$Beta, 
                          Rhat = TRUE, 
                          n.eff = TRUE, 
-                         probs = c(0.1, 0.5, 0.9), 
+                         probs = c(0.05, 0.5, 0.95), 
                          round = 2)
 gill_betas= gill_betas[-1,]
 
 seine_betas<-MCMCsummary(seine_post$Beta, 
                          Rhat = TRUE, 
                          n.eff = TRUE, 
-                         probs = c(0.1, 0.5, 0.9), 
+                         probs = c(0.05, 0.5, 0.95), 
                          round = 2)
 seine_betas= seine_betas[-1,]
 
 #* Plot Posterior means and CIs for all parameters to plot ####
-betaEsts <- matrix(NA, nrow=14,ncol=3)
+betaEsts <- matrix(NA, nrow=13,ncol=3)
 colnames(betaEsts) <- c("estimate", "conf.low", "conf.high")
 
 betaEsts[,1] <- seine_betas$mean
-betaEsts[,2] <- seine_betas$`10%`
-betaEsts[,3] <- seine_betas$`90%` 
+betaEsts[,2] <- seine_betas$`5%`
+betaEsts[,3] <- seine_betas$`95%` 
 betaEsts<-as.data.frame(betaEsts)
 
-betaEsts$term <- c("lake_area", "perim", "order", "ws_area", "ws_urban", "ws_forest", "ws_agriculture",
+betaEsts$term <- c("lake_area", "geom_ratio", "order", "ws_urban", "ws_forest", "ws_agriculture",
                    "ws_shrub", "ws_wetland", "ws_slope", "ws_elevation", "dd_mean", "shoreline_houses", "Secchi")
 
 
@@ -143,21 +230,23 @@ lake_plot<-dwplot(betaEsts, style = "dotwhisker",
 lake_plot
 
 # Plot response of species over the gradient of environmental variable x
-Gradient = constructGradient(m1, focalVariable="z_dd_mean")
-predY = predict(m1, Gradient=Gradient)
-plotGradient(m1, Gradient, pred=predY, measure="Y", q = c(0.05, 0.5, 0.95), showData = TRUE) 
+Gradient = constructGradient(m_seine_l, focalVariable="z_dd_mean")
+predY = predict(m_seine_l, Gradient=Gradient)
+plotGradient(m_seine_l, Gradient, pred=predY, measure="Y", q = c(0.05, 0.5, 0.95), showData = TRUE) 
 
-#investigate MCMC convergence 
-plot(mpost$Beta) #trace plot and density plot - two chains(red and black) look identical, the chains mix very well, i.e. they go fast up and down without any apparent autocorrelation, they seem to have reached a stationary distribution  
-effectiveSize(mpost$Beta) #did we set enough samples? effective sample sizes are very close to the theoretical value of the actual number of samples, which is 2000 (1000 per chain)
-gelman.diag(mpost$Beta,multivariate=FALSE)$psrf #scale reduction factors are very close to one, which indicates that two chains gave consistent results
+#*investigate MCMC convergence ####
+plot(shock_post$Beta) #trace plot and density plot - two chains(red and black) look identical, the chains mix very well, i.e. they go fast up and down without any apparent autocorrelation, they seem to have reached a stationary distribution  
+effectiveSize(shock_post$Beta) #did we set enough samples? effective sample sizes are very close to the theoretical value of the actual number of samples, which is 2000 (1000 per chain)
+gelman.diag(shock_post$Beta,multivariate=FALSE)$psrf #scale reduction factors are very close to one, which indicates that two chains gave consistent results
 par(mfrow=c(1,2)) #plot if you have a lot of parameters 
-hist(effectiveSize(mpost$Beta), main="ess(beta)") 
-hist(gelman.diag(mpost$Beta, multivariate=FALSE)$psrf, main="psrf(beta)")
+hist(effectiveSize(shock_post$Beta), main="ess(beta)") 
+hist(gelman.diag(shock_post$Beta, multivariate=FALSE)$psrf, main="psrf(beta)")
 
-# get RMSE and R2 by looking at the predicted dist distribution
-preds = computePredictedValues(m1) #posterior predictive distribution 
-evaluateModelFit(hM=m1, predY=preds)
+#* get RMSE and R2 by looking at the predicted dist distribution ####
+#Lower values of RMSE indicate better fit.
+#explanatory R2 
+preds = computePredictedValues(m_shock_l) #posterior predictive distribution 
+evaluateModelFit(hM=m_shock_l, predY=preds)
 
 #diagnostic plots 
 preds.mean = apply(preds, FUN=mean, MARGIN=1) #get the posterior means 
