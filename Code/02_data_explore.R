@@ -4,18 +4,69 @@
 
 library(PerformanceAnalytics)
 
+#### look at correlation among driver variables #### 
 driver_vars<-read.csv("Data/driver_varibles.csv")
 
 driver_nonas<-na.omit(driver_vars) # find out how many rows have all of the variables #371 
-#need to figure out what to do with the -99 (e.g. does 0 make more sense)
+
 my_data <- driver_vars[, c(5,6,13:28)] 
 PerformanceAnalytics::chart.Correlation(my_data, histogram=TRUE, pch=19)
-# use houses instead of docks... don't think canada has the dock data and they are highly correlated  
+# use houses instead of docks... don't think Canada has the dock data and they are highly correlated  
 #pick dd or surface temp 
 my_data <- driver_vars[, c(5,6,13:21, 28,29)] 
 
+#### plot drivers vs. response variables #### 
+par(mfrow = c(5, 3)) #15 drivers 
+#ggplot 
+x_axis_vars = names(dat_shock[, 51:66])
+for (i in 1:length(x_axis_vars)) {
+  x_vars = x_axis_vars[i]
+  print(ggplot(dat_shock, aes(x=.data[[x_vars]], y= SHOCK)) + 
+    geom_point() + 
+      geom_smooth(method="lm") + 
+      xlab(paste(x_vars))
+    )
+  #Sys.sleep(2) #this makes it shuffle through 
+ }
 
-##### map variables to look for spatial autocorrelation #### 
+#base R plot 
+x_axis_vars = names(dat_shock[, 51:66])
+
+for(i in 1:length(x_axis_vars)){
+  curr_x_axis_var = x_axis_vars[i] #set the current x axis value 
+  plot(y = dat_shock$SHOCK,
+       x = dat_shock[[curr_x_axis_var]],
+       xlab = paste(curr_x_axis_var))
+  Sys.sleep(2) #this makes it shuffle through
+}
+
+####plot catch data by gear #### 
+lmb<-filter(count_data, species == 'LMB')
+ggplot(lmb, aes(x=log(fish_count), color=gear2, linetype=gear2)) +
+  geom_density() + 
+  scale_linetype_manual(values=c("twodash", "dotted", "solid", "longdash"))+
+  scale_color_manual(values=c('#000000','#E69F00', "#009E73","#56B4E9" )) + 
+  theme_bw()  + 
+  ggtitle("LMB")
+
+
+wae<-filter(count_data, species == 'WAE')
+ggplot(wae, aes(x=log(fish_count), color=gear2, linetype=gear2)) +
+  geom_density() + 
+  scale_linetype_manual(values=c("twodash", "dotted", "solid", "longdash"))+
+  scale_color_manual(values=c('#000000','#E69F00', "#009E73","#56B4E9" )) + 
+  theme_bw()+ 
+  ggtitle("WAE")
+
+cis<-filter(count_data, species == 'CIS')
+ggplot(cis, aes(x=log(fish_count), color=gear2, linetype=gear2)) +
+  geom_density() + 
+  scale_linetype_manual(values=c("twodash", "dotted", "solid", "longdash"))+
+  scale_color_manual(values=c('#000000','#E69F00', "#009E73","#56B4E9" )) + 
+  theme_bw()+ 
+  ggtitle("CIS")
+
+#### map variables to look for spatial autocorrelation #### 
 #pull Michigan map from the map package and plot points just to examine
 library(ggmap)
 library(mapdata)
@@ -65,3 +116,19 @@ boxplot(dat_shock$SHOCK)
 boxplot(dat_net$NET)
 boxplot(log(dat_shock$SHOCK), ylab="logshock")
 boxplot(log(dat_net$NET), ylab="lognet")
+
+####map of sp obs across the state (just presence) ####
+#note these are obs before removing ones that dont have predictor variables. so numbers go down 
+# lmb 
+map + 
+  geom_point(data=lmb_count_dat, aes(x = LONG_DD, y = LAT_DD)) +
+  ggtitle("LMB n=378")
+
+#wae
+map + 
+  geom_point(data=wae_count_dat, aes(x = LONG_DD, y = LAT_DD)) +
+  ggtitle("WAE n=226")
+#cis
+map + 
+  geom_point(data=cis_count_dat, aes(x = LONG_DD, y = LAT_DD)) +
+  ggtitle("CIS n=32")

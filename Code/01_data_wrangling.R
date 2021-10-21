@@ -5,7 +5,7 @@
 #### load libraries ####
 library(dplyr)
 library(ggplot2)
-
+library(lubridate)
 
 ##### data merging and cleaning ####
 #*driver variables ####
@@ -15,7 +15,10 @@ lake_vars<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/lake_attri
 lake_link<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/new_key_comid_translate.csv") %>% #the lake variables table does not have many new_key ids - so link to by this table from KEvin 
             dplyr::select(COMID, NEW_KEY) %>%
             rename(new_key=NEW_KEY)
-lake_join<-left_join(lake_vars, lake_link, by=c('ihdlkid' = "COMID")) #some comids have multiple new_keys, keep duplicates 
+lake_depth<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/lake_depth_2021.csv") %>%
+  dplyr::select(new_key, MaxDepth_ft, MeanDepth_ft)
+lake_join<-left_join(lake_vars, lake_link, by=c('ihdlkid' = "COMID")) %>% #some comids have multiple new_keys, keep duplicates 
+            left_join(lake_depth)
 ws_vars<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/local_catchment_attributes.csv") %>%
   dplyr::select(IHDID, WL_NLCD21, WL_NLCD22, WL_NLCD23, WL_NLCD24, WL_NLCD41, WL_NLCD42, WL_NLCD43, WL_NLCD52, WL_NLCD71, WL_NLCD81, WL_NLCD82, WL_NLCD90, WL_NLCD95, WL_SLOPE, WL_ELEVMEAN ) %>%
   rename(ihdlkid = IHDID,  ws_slope_deg=WL_SLOPE, ws_mean_elevation_m=WL_ELEVMEAN)
@@ -51,7 +54,7 @@ dups<-surface_mean %>%
   group_by(ihdlkid) %>% 
   filter(n() > 1)
 
-surface_temp_mean<- surface_mean[!duplicated(paste(surface_mean$ihdlkid)),] #select only one row of each lake
+surface_temp_mean<- surface_mean[!duplicated(paste(surface_mean$ihdlkid)),] #select only one row of each lake (randomly remove)
 degdays_mean<- dd_mean[!duplicated(paste(dd_mean$ihdlkid)),] #select only one row of each lake
 
 #join driver variables 
@@ -63,9 +66,28 @@ driver_vars<-left_join(lake_join, ws_vars2) %>%
 #put all column names to lowercase for consistency  
 names(driver_vars)<-tolower(names(driver_vars))  
 #re-order columns 
-driver_vars <- driver_vars[, c(1, 11, 21, 28, 2, 3, 4, 5, 6, 7,8,9,10,12,13,14,15,16,17,18,19,20,22,23,24,25,26,27,29)]
+driver_vars <- driver_vars[, c(1, 11, 23, 30, 2, 3, 4, 5, 6, 7,8,9,10,12,13,14,15,16,17,18,19,20,21,22,24,25,26,27,28,29,31)]
 
-write.csv(driver_vars, "Data/driver_varibles.csv", row.names = FALSE)
+#duplicates come from multiple surveys e.g. shoreline and secchi 
+drivers<- driver_vars[!duplicated(paste(driver_vars$new_key)),] #select only one row of each lake - need to do this by new_key because some nhdids have multiple new_keys
+
+#set lake order to 0 if it is an isolated lake (currently -99)
+drivers <- drivers %>%
+  mutate(
+    lake_order = case_when(
+      lake_order == -99 ~ as.integer(0),   #if ~ then 
+      TRUE      ~ drivers$lake_order))  ### the else part 
+
+#convert secchi to meters and lake area to m2 and depth to m
+drivers$secchi_m<-drivers$secchi_ft/3.28
+drivers$lake_area_m2<-drivers$lake_area_ac/0.00024711 #change from acre to m2
+drivers$maxdepth_m<-drivers$maxdepth_ft/3.28
+drivers$meandepth_ft<-drivers$meandepth_ft/3.28
+
+#make the variable geometry ratio - Area (m2) ^ .25 / max depth (m)
+drivers$geom_ratio<-(drivers$lake_area_m2^0.25) / drivers$maxdepth_m
+
+write.csv(drivers, "Data/driver_varibles.csv", row.names = FALSE)
 
 
 ############################
@@ -90,6 +112,10 @@ names(catch_data)<-tolower(names(catch_data))
 
 #re-order columns 
 catch_data <- catch_data[, c(1, 2, 19, 6, 7, 8, 14, 11, 12, 13, 17, 18, 9, 15, 16, 22, 23, 4, 5, 3, 20, 21, 10)]
+
+#convert date to julian (year) day 
+catch_data$date<- as.Date(catch_data$sample_start_date, "%m/%d/%y") # convert "date" from chr to a Date class and specify current date format
+catch_data$julian <- yday(catch_data$date)  
 
 #MI_data$macth<-MI_data$survey_year == MI_data$year #test years, all TRUE, remove SURVEY_YEAR  
 #MI_data$macth<-MI_data$new_key.x == MI_data$new_key.y #test to see if the NEW_KEY matches, all TRUE, so drop NEW_KEY from effort dataset
@@ -167,7 +193,7 @@ lmb_format<-tidyr::pivot_wider(data= MI_data_LMB,
                               
 
 
-#use catch data not cpue 
+#use catch data not cpue #this does not have lakes with no LMB 
 count_lmb<-filter(count_data, species=='LMB')
 count_lmb_format<-tidyr::pivot_wider(data= count_lmb, 
                                id_cols = c(new_key),
@@ -220,17 +246,8 @@ count_cis_format<-tidyr::pivot_wider(data= count_cis,
                                      values_from = c(fish_count, effort),
                                      values_fill = list(fish_count = 0, effort = 0)) #replace NAs with 0
 
-
-##### link catch data to drivers #####
+#### link catch data to drivers ####
 drivers<-read.csv( "Data/driver_varibles.csv")
-#duplicates come from multiple surveys e.g. shoreline and secchi 
-drivers<- drivers[!duplicated(paste(drivers$new_key)),] #select only one row of each lake - need to do this by new_key because some nhdids have multiple new_keys
-#set lake order to 0 if it is an isolated lake (currently -99)
-drivers <- drivers %>%
-  mutate(
-    lake_order = case_when(
-      lake_order == -99 ~ as.integer(0),   #if ~ then 
-      TRUE      ~ drivers$lake_order))  ### the else part 
 
 #pull out lat/lon for spatial autocorrelation testing, mapping, modeling 
 lake_ll<- lake_info[!duplicated(paste(lake_info$new_key)),] 
@@ -239,23 +256,18 @@ lake_ll<- lake_info[!duplicated(paste(lake_info$new_key)),]
 dat<-left_join(lmb_format, drivers ) %>% # 472 unique lakes, but 41 lakes don't match the drivers with the nhdid
       left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
 
-dat$secchi_m<-dat$secchi_ft/3.28
-
-lmb_count_dat<-left_join(count_lmb_format, dat) #count data don't have lakes with 0 obs so less rows
+lmb_count_dat<-left_join(count_lmb_format, dat)  %>% #count data don't have lakes with 0 obs so less rows
+      rename(SHOCK_cpue = SHOCK, FT_NET_cpue = FT_NET, GILL_cpue = GILL , SEINE_cpue = SEINE)
 
 #join tables for WAE
 dat<-left_join(wae_format, drivers ) %>% # 472 unique lakes, but 41 lakes don't match the drivers with the nhdid
   left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
-
-dat$secchi_m<-dat$secchi_ft/3.28
 
 wae_count_dat<-left_join(count_wae_format, dat) #count data don't have lakes with 0 obs so less rows
 
 #join tables for CIS 
 dat<-left_join(cis_format, drivers ) %>% # 472 unique lakes, but 41 lakes don't match the drivers with the nhdid
   left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
-
-dat$secchi_m<-dat$secchi_ft/3.28
 
 cis_count_dat<-left_join(count_cis_format, dat) #count data don't have lakes with 0 obs so less rows
 
