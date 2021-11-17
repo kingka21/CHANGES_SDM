@@ -66,6 +66,38 @@ ggplot(cis, aes(x=log(fish_count), color=gear2, linetype=gear2)) +
   theme_bw()+ 
   ggtitle("CIS")
 
+#### area distribution across gears #### 
+#join tables for LMB 
+new<-count_data %>%
+  group_by(new_key, gear2) %>%
+  summarise(sum = sum(fish_count))
+
+dat<-left_join(new, drivers ) %>% 
+  select(new_key, gear2, lake_area_ac)
+
+ggplot(dat, aes(x=lake_area_ac, color=gear2, linetype=gear2)) +
+  geom_density() + 
+  scale_linetype_manual(values=c("twodash", "dotted", "solid", "longdash"))+
+  scale_color_manual(values=c('#000000','#E69F00', "#009E73","#56B4E9" )) + 
+  theme_bw()
+
+#### temporal variation in gear use #### 
+new<-count_data %>%
+  group_by(new_key, gear2) %>%
+  summarise(sum = sum(fish_count))
+
+MI_data_no_dups
+MI_data<- MI_data_no_dups[!duplicated(paste(MI_data_no_dups$new_key)),] %>%
+  select(new_key, year)
+
+dat<-left_join(new, MI_data, by=c("new_key" )) %>% 
+  select(new_key, gear2, year)
+
+ggplot(dat, aes(x=year, color=gear2, linetype=gear2)) +
+  geom_density() + 
+  scale_linetype_manual(values=c("twodash", "dotted", "solid", "longdash"))+
+  scale_color_manual(values=c('#000000','#E69F00', "#009E73","#56B4E9" )) + 
+  theme_bw()
 #### map variables to look for spatial autocorrelation #### 
 #pull Michigan map from the map package and plot points just to examine
 library(ggmap)

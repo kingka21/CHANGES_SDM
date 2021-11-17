@@ -4,6 +4,7 @@
 
 #### load libraries ####
 library(dplyr)
+library(tidyr)
 library(ggplot2)
 library(lubridate)
 
@@ -99,36 +100,39 @@ catch<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/snt_catch_data
   dplyr:: select(NEW_KEY, Survey_Number, GEAR, SPECIES, FISH_COUNT)%>%
   rename(new_key=NEW_KEY, survey_number=Survey_Number)
 effort<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/snt_effort_data.csv") %>%
-  dplyr::select(Survey_Number,GEAR, EFFORT_MEASURE, EFFORT, SAMPLE_START_DATE, SAMPLE_END_DATE) %>%
-  rename(survey_number=Survey_Number)
+  dplyr::select(NEW_KEY, Survey_Number, GEAR, EFFORT_MEASURE, EFFORT, SAMPLE_START_DATE, SAMPLE_END_DATE) %>%
+  rename(survey_number=Survey_Number, new_key=NEW_KEY)
 
 #join raw data tables 
-catch_data<-left_join(catch, lake_info, by=c("new_key","survey_number")) %>%#join by survey number
-  droplevels() %>%
-  left_join(effort, by = c("survey_number", "GEAR")) # join by survey number and gear to get effort 
+catch_data<-left_join(lake_info, effort, by=c("new_key","survey_number")) %>%#join by survey number
+  full_join(catch, by = c("new_key", "survey_number", "GEAR")) %>%  # join by survey number and gear to get effort #full join keeps all of the gears/efforts used 
+  drop_na('GEAR') #drop lakes where we don't have sample data 
+
+catch_data$SPECIES<-ifelse(is.na(catch_data$SPECIES), 'NONE', catch_data$SPECIES) #keep effort even when no sp caught 
+catch_data$FISH_COUNT<-ifelse(is.na(catch_data$FISH_COUNT), 0, catch_data$FISH_COUNT)
 
 #put all column names to lowercase for consistency  
 names(catch_data)<-tolower(names(catch_data))
 
 #re-order columns 
-catch_data <- catch_data[, c(1, 2, 19, 6, 7, 8, 14, 11, 12, 13, 17, 18, 9, 15, 16, 22, 23, 4, 5, 3, 20, 21, 10)]
+#catch_data <- catch_data[, c(1, 2, 19, 6, 7, 8, 14, 11, 12, 13, 17, 18, 9, 15, 16, 22, 23, 4, 5, 3, 20, 21, 10)]
 
 #convert date to julian (year) day 
 catch_data$date<- as.Date(catch_data$sample_start_date, "%m/%d/%y") # convert "date" from chr to a Date class and specify current date format
 catch_data$julian <- yday(catch_data$date)  
 
 #MI_data$macth<-MI_data$survey_year == MI_data$year #test years, all TRUE, remove SURVEY_YEAR  
-#MI_data$macth<-MI_data$new_key.x == MI_data$new_key.y #test to see if the NEW_KEY matches, all TRUE, so drop NEW_KEY from effort dataset
+#MI_data$macth<-MI_data$new_key.x == MI_data$new_key.y #test to see if the NEW_KEY matches, all TRUE, so can drop NEW_KEY from effort dataset
 
-#*look for duplicate surveys on lakes ####
+#*look for and remove duplicate surveys on lakes ####
 # distinct lake/survey combos n=505
-unique_LS<-catch_data %>% 
-  distinct(new_key, survey_number, .keep_all = T)
+#unique_LS<-catch_data %>% 
+ # distinct(new_key, survey_number, .keep_all = T)
 
-# non-distinct only 33 lakes with multiple surveys
-lakes_multi_survey<-unique_LS %>% 
-  group_by(new_key) %>% 
-  filter(n() > 1)
+# look at non-distinct: only 33 lakes with multiple surveys
+#lakes_multi_survey<-unique_LS %>% 
+ # group_by(new_key) %>% 
+  #filter(n() > 1)
 
 #choose the most recent survey 
 MI_data_no_dups<-catch_data %>%
@@ -162,7 +166,7 @@ MI_data_no_dups$gear2<-sapply( MI_data_no_dups$gear, function(x) {
                     }}}}}}})
 
 # group by lake, species, and gear then sum counts and effort 
-count_data<-select(MI_data_no_dups, new_key, species, fish_count, gear2, effort) %>%
+count_data<-dplyr::select(MI_data_no_dups, new_key, species, fish_count, gear2, effort) %>%
     group_by(new_key, species, gear2) %>%
     summarise_if(is.numeric, sum)
 
@@ -171,7 +175,7 @@ count_data$cpue<-round(count_data$fish_count/count_data$effort, 3)
 
 #need to "spread" the table so that lakes with missing sp can be included as 0s in the dist model 
 #rearrange table to have species along the top, will aggregate by the lake name column (#472 lakes) and gear 
-lake_sp_cpue<-tidyr::pivot_wider(data= count_data, 
+lake_sp_wide<-tidyr::pivot_wider(data= count_data, 
                           id_cols = c(new_key, gear2),
                            names_from = species, 
                            values_from = cpue, 
@@ -180,7 +184,7 @@ lake_sp_cpue<-tidyr::pivot_wider(data= count_data,
 
 #### LARGE MOUTH BASS DATA #### 
 #select out LMB # this keeps effort for absences
-MI_data_LMB<- select(lake_sp_cpue, new_key, gear2, LMB) 
+MI_data_LMB<- select(lake_sp_wide, new_key, gear2, LMB) 
 
 names(MI_data_LMB)<-tolower(names(MI_data_LMB))
 
@@ -200,6 +204,7 @@ count_lmb_format<-tidyr::pivot_wider(data= count_lmb,
                                names_from = gear2, 
                                values_from = c(fish_count, effort),
                                values_fill = list(fish_count = 0, effort = 0)) #replace NAs with 0
+
 #### WALLEYE DATA #### 
 #select out WAE # this keeps effort for absences
 MI_data_WAE<- select(lake_sp_cpue, new_key, gear2, WAE) 

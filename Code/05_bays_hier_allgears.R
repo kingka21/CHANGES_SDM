@@ -1,7 +1,9 @@
 # modeling hierarchical model with varying intercepts and all gears combined
-#written by Katelyn King 
+#written by Katelyn King and Henrique Giacomini
 #code adapted from Tyler Wagner 
-#using catch as response, use Poisson distribution  
+#using total catch as response, use Poisson distribution 
+# there is the option of separating catches from different gears, would add another level in the model (the site, with multiple catch values, as a random factor). 
+
 
 #load libraries 
 library(R2jags)
@@ -36,7 +38,7 @@ dat<-dplyr::select(lmb_count_dat, new_key, count, FMU_Code, z_lake_area, z_dd_me
 is.na(dat)<-sapply(dat, is.infinite)
 dat[is.na(dat)]<-0
 
-#check out response - log of count is actually normally dist. 
+#check out response: log of count is actually normally dist. 
 hist(dat$count)
 hist(log(dat$count))
 
@@ -48,12 +50,15 @@ sink("model.txt")
 cat("
     model {
     # Likelihood: 
+    ngears<-4 #total number of different sampling gears used
     for (i in 1:n){ 
     y[i] ~ dpois(lambda[i])  # Distribution Poisson  
     log(lambda[i]) <- log.lambda[i] # log-link 
-    log.lambda[i] <- alpha[group[i]] + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + b[4] * x4[i] + 
-                       b[5] * x5[i] + b[6] * x6[i] + b[7] * x7[i] + b[8]* x8[i] 
-                       
+    log.lambda[i] <- alpha[group[i]] + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + QE #QE is the combined effect of all the gears
+    QE<-log(sum(c(q,1)*effort[i,]))  #the vector with all catchability values is c(q,1), which adds the reference catchability =1 for the last gear type
+          #q is a vector with catchabilities (to be estimated) of all gears except the last type (for which catchability is fixed at 1).
+          #effort is a matrix with sampling effort per site (rows) and gear type (columns)  
+           
     } 
     
     # Level-2 of the model 
@@ -71,13 +76,14 @@ cat("
     b[k] ~ dnorm(0,3)
     }
     
-    # priors for ratios  
-    b[4] ~ dnorm(1.3,2)
-    b[5] ~ dnorm(0.75,1.4)
-    b[6] ~ dnorm(1.4,4)
-    b[7] ~ dnorm(1.2,3)
-    b[8] ~ dnorm(1.5,2.8)
-    
+     # priors for gear-specific catchabilities 
+    for(k in 1:(ngears-1)){
+      q[k] ~ dnorm(mu.q[k],tau.q[k]) #elements of vectors muq and tauq have to be specified below
+    }
+    mu.q<-c(1,1,1,1) #expected values of catchabilities relative to last gear type (1 means equal catchability), from independent studies 
+    tau.q<-c(0,0,0,0) #precision of priors for relative catchabilities, to be filled with actual values
+   #ratios would be useful to estimate prior distributions for those catchabilities, relative to a reference gear.
+
     } # end model
     ",fill = TRUE)
 sink()

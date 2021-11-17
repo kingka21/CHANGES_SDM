@@ -1,6 +1,8 @@
 ###########################
 #9/2/2014, flathead, for paper
 # 3 gears
+# data: structure columns: catch in year.month.grid by swept.area and gear type (specified as 1,2,3)
+#    catch[]	ymg[]	swpA[]	gear[]
 
 model { 
   # for Negative binomial distribution, activate p,r,mu
@@ -8,6 +10,7 @@ model {
   #r ~ dlnorm(0,0.1)
   #mu<- r*(1-p)/p
   mu ~ dlnorm(1, 0.1)	
+  
   for (k in 1:3) { 
     q[k] ~ dbeta(1,1)   
     } 
@@ -20,7 +23,7 @@ model {
   for (i in 1:699) {
     #dummy[i]<- catch_wt[i]
     den2[i] ~ dpois(Den[ymg[i]])  #ymg: year.month.grid index
-    N[i] <- den2[i] * swpA[i]
+    N[i] <- den2[i] * swpA[i]     #swpA: swept.area = effort 
     catch[i] ~ dbin(q[gear[i]], N[i] )
     #	pred.c[i] ~dbin(q[gear[i]], N[i])
     est.c[i]<- q[gear[i]] * N[i]
@@ -73,12 +76,14 @@ model {
 
 
         
-# data: structure columns: catch in year.month.grid by swept.area and gear type (specified as 1,2,3)
-  #    catch[]	ymg[]	swpA[]	gear[]
 
 
 ##### general model #### 
 #Appendix 5: WinBUGS code for NB-PS model
+
+#negative binomial and poisson distribution 
+#Since the negative binomial distribution has one more parameter than the Poisson, 
+#the second parameter can be used to adjust the variance independently of the mean
 
 #NB.PS_Model
 { 
@@ -90,6 +95,7 @@ model {
   p ~ dbeta(1, 1) 
   r ~ dlnorm(0, 0.01)  
   mu <- r * (1 - p) / p
+  
   for (k in 1 : ng) { 
     Q[k] ~ dbeta(1,1)   
   }
