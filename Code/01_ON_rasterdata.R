@@ -179,6 +179,7 @@ ws_lakeshp2$lakeid <- lake_shape_sp2$WbyLID
 
 ws_match<-rbind(ws_lakeshp,ws_lakeshp2 )
 ws_match<- ws_match[!duplicated(paste(ws_match$lakeid)),] #953 unique lakes 
+write.csv(ws_match, "Data/ON_data/ws_lake_ids.csv", row.names = FALSE)
 
 ############################ #### #### #### #### #### #### #### #### #### #### #### 
 #### base maps for the US and Canada from the raster package - pulls from the GADM site ####
