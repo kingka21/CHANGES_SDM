@@ -14,7 +14,7 @@ summary(BRM1)
 
 #count_lmb has count, effort by gear
 #join tables for LMB 
-dat<-left_join(count_lmb, drivers ) %>% # 472 unique lakes, but 41 lakes don't match the drivers with the nhdid
+dat<-lmb_dat_for_model %>% # 472 unique lakes, but 41 lakes don't match the drivers with the nhdid
   left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
 
 ## standardize and transform predictor values ##
@@ -34,7 +34,7 @@ dat$z_ws_slope<-as.numeric(scale(log(dat$ws_slope_deg + 0.001))) #has 0s so adde
 dat$z_ws_elevation<-as.numeric(scale(log(dat$ws_mean_elevation_m))) #good 
 dat$z_houses<-as.numeric(scale(log(dat$houses_km+ 0.001))) #ok 
 
-dat$logeffort <- log(dat$effort)
+dat$logeffort <- log(dat$effort_new)
 
 
 #### setting up the model in BRMS #### 
@@ -62,19 +62,27 @@ for(j in 1:J){
 #Varying intercepts are regularized by estimating how diverse the clusters are while estimating the features of each cluster. 
 #A major benefit of using varying effects estimates is that they provide more accurate estimates of the individual cluster intercepts. 
 #On average, the varying effects actually provide a better estimate of the individual cluster means. The reason that the varying intercepts provide better estimates is that they do a better job of trading off underfitting and overfitting.
-model_1<-brm(fish_count ~ z_lake_area + z_dd_mean + gear + offset(logeffort) + #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  
-              (1 | region:lake) + #interaction between region and lake (which is the lake level effect).#varying intercept if there is a 1 infront of the line 
-              (1 | region), #main effect of region
+model_1<-brm(fish_count_new ~ z_lake_area + z_dd_mean + gear2 + offset(logeffort) + #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  
+              (1 | gear2),  # the lake level effect).#varying intercept if there is a 1 in front of the line 
             data = dat,
-            family = poisson(link = "log"), #family agrgument to specify distribution of the response 
-            prior = prior(normal(0, 1), class = b,
-                          cauchy(0, 5), class = sd),
+            family = poisson(link = "log"), #family argument to specify distribution of the response 
+        
             chains = 2,
             cores = 2, 
-            iter = 2000)
+            iter = 4000)
 
-
-#using an ifelse statement 
+#old code with 3 levels - not sure where I found this 
+model_1<-brm(fish_count_new ~ z_lake_area + z_dd_mean + gear2 + offset(logeffort) + #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  
+               (1 | FMU_Code:new_key) + #interaction between region and lake (which is the lake level effect).#varying intercept if there is a 1 in front of the line 
+               (1 | FMU_Code), #main effect of region
+             data = dat,
+             family = poisson(link = "log"), #family argument to specify distribution of the response 
+             prior = prior(normal(0, 1), class = b,
+                           cauchy(0, 5), class = sd),
+             chains = 2,
+             cores = 2, 
+             iter = 2000)
+# example using an ifelse statement 
 for (x in 1:N)
   if (x < t)
     y[i] ~ normal(a + b * m, sigma1)
@@ -89,14 +97,23 @@ bform <- bf(
   nl = TRUE
 )
 
+xlt = gear < 4
+bform <- bf(
+  xlt * (z_lake_area + z_dd_mean + logq*gear + offset(logeffort)) + (1 - xlt) * (z_lake_area + z_dd_mean + offset(logeffort)),
+  a + b + p ~ 1,
+  nl = TRUE
+)
+
+#what I want to do 
 if (gear<4) { # if gear is not the reference gear (1,2,3)
-  log.lambda[i] <- alpha[site[i]] + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + logq[gear[i]] + logeffort[i]  #q and effort are specific to sample i
+  log.lambda[i] <- alpha[site[i]] + b[1]*x1[i] + b[2]*x2[i] + b[3]*x3[i] + logq[gear[i]] + logeffort[i]  #q and effort are specific to sample i
   #logq[gear[i]] is the log(q) for the gear
 }
 else (gear=4){ # if gear is the reference gear
-  log.lambda[i] <- alpha[site[i]] + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + logeffort[i]  #logq is set to zero
+  log.lambda[i] <- alpha[site[i]] + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + logeffort[i]  #logq catchability is set to zero
 }
-} 
+
+
 #PRIORS# 
 #fixed effect regression coefficients, normal and student t would be the most common prior distributions
 #the brms defaults to a uniform/improper prior, which is a poor choice. 
@@ -124,19 +141,18 @@ post %>%
 print(model_1) #hierarchical  group summaries shown
 posterior_summary(model_1) %>% round(digits = 2) #all parameter summaries shown
 #coefficient plots similar to mine 
-bayesplot::mcmc_plot(model_1, pars = c("^r_", "^b_", "^sd_")) +
+mcmc_plot(model_1, pars = c("^r_", "^b_", "^sd_")) +
   theme(axis.text.y = element_text(hjust = 0))
 
 #check out variation among obs within each of the grouping variables (region and lake), 
 #could remove one grouping variable if the within group variation is small, then compare models using the WAIC  
 post %>%
   pivot_longer(starts_with("sd")) %>% 
-  
   ggplot(aes(x = value, fill = name)) +
   geom_density(size = 0, alpha = 3/4, adjust = 2/3, show.legend = F) +
   annotate(geom = "text", x = 0.67, y = 2, label = "block", color = "orange4") +
   annotate(geom = "text", x = 2.725, y = 0.5, label = "actor", color = "orange1") +
-  scale_fill_manual(values = str_c("orange", c(1, 4))) +
+ scale_fill_manual(values = str_c("orange", c(1, 4))) +
   scale_y_continuous(NULL, breaks = NULL) +
   ggtitle(expression(sigma["<group>"])) +
   coord_cartesian(xlim = c(0, 4))

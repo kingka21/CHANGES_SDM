@@ -1,4 +1,4 @@
-##Credit to m-clark.github Michael Clark : consultung for statistics, computing, and analytics research at UofM
+##Credit to m-clark.github Michael Clark : consulting for statistics, computing, and analytics research at UofM
 #Bayesian approach - all parameters are random draws from a distribution.
 install.packages('brms')
 install.packages('rstan')
@@ -31,7 +31,7 @@ brm(BOOMSHK ~ lake_area_ac + z + (1|g),
 #test run 
 brm(fish_count ~ (1|gear), 
     data=count_data, 
-    family = poisson(link = "log"), #family agrgument to specify distribution of the response 
+    family = poisson(link = "log"), #family argument to specify distribution of the response 
     chains = 2,
     cores = 2, 
     iter = 2000)

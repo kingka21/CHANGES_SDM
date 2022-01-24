@@ -58,9 +58,54 @@ lakes_multi_survey<-chem %>%
 #*DO and temp profile data ####
 #will have to match by lake and cycle #0.5 m is the surface temp 
 temp_do<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/ON_data/BsM_data_2021/WaterTemperature_DO_profiles_2021.csv") %>%
-  select(Cycle, lakeid, Depth_m, Temp_degC, DO_mgL, Primary_Profile) %>%
+  dplyr::select(Cycle, lakeid, Date, Depth_m, Temp_degC, DO_mgL, Primary_Profile) %>%
   filter(Primary_Profile == "Yes")
 
+names(temp_do)<-tolower(names(temp_do))  
+
+#look for cases when depth is repeated (don't want this for profile calcs)
+unique<-temp_do %>% 
+  group_by(cycle, lakeid, date, depth_m) %>%
+  mutate(n = n()) %>%
+  filter(n > 1)
+
+#calc thermo depths using the Rlakeanalyzer package : need unique depths  
+thermo_depth<-temp_do %>% 
+  group_by(cycle, lakeid, date) %>%
+  summarise(thermo_depth_m = thermo.depth(wtr=temp_degc, depths=depth_m, seasonal = FALSE)) #location of the thermocline from a temperature profile
+
+#plot one of the lake surveys to see if the calculated depth matches visual 
+test<-filter(temp_do, lakeid == '15-3532-55170' & cycle == '1')
+ggplot(test, aes(x = temp_degc, y = depth_m, colour = temp_degc)) +
+  geom_point() + 
+  scale_y_reverse() +
+  scale_colour_gradient2(
+    midpoint = 15, 
+    high = ("red"), #scales::muted("red") will give you a muted color! 
+    low = ("blue") #scales::muted("blue")
+  ) + 
+  theme_bw()
+
+#pull out the top/surface value for each combo 
+top<-temp_do %>% 
+  group_by(cycle, lakeid, date) %>%
+  slice_head()  %>% 
+  dplyr::select(cycle, lakeid, date, depth_m, temp_degc, do_mgl)%>% 
+  rename(surface_depth_m  = depth_m, surface_temp_c= temp_degc, surface_do_mgl = do_mgl)
+
+
+#pull out the bottom value for each combo 
+bottom<-temp_do %>% 
+  group_by(cycle, lakeid, date) %>%
+  slice_tail() %>% 
+  dplyr::select(cycle, lakeid, date, depth_m, temp_degc, do_mgl) %>% 
+  rename(bottom_depth_m  = depth_m, bottom_temp_c= temp_degc, bottom_do_mgl = do_mgl)
+
+#join new temp/do measures 
+temp_do_ON<-left_join(top, bottom) %>%
+  left_join(thermo_depth)
+
+write.csv(temp_do_ON, "Data/ON_data/temp_do_measures_ON.csv", row.names = FALSE)
 
 #* shorline data #### 
 shoreline_dat<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/ON_data/shoreline_data_2017.csv") %>% #there is more in this dataset but it is old - so using variables that may not change 
