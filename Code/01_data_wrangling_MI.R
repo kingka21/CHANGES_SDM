@@ -69,7 +69,7 @@ driver_vars<-left_join(lake_join, ws_vars) %>%
 #put all column names to lowercase for consistency  
 names(driver_vars)<-tolower(names(driver_vars))  
 #re-order columns 
-driver_vars <- driver_vars[, c(1, 13, 2, 3, 4, 5, 6, 7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28)]
+#driver_vars <- driver_vars[, c(1, 13, 2, 3, 4, 5, 6, 7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28)]
 
 #duplicates come from multiple temp measures on diff polys based on area
 dups<-driver_vars %>% 
@@ -78,7 +78,7 @@ dups<-driver_vars %>%
 #dont remove duplicates yet  
 
 
-write.csv(driver_vars, "Data/driver_varibles.csv", row.names = FALSE)
+#write.csv(driver_vars, "Data/driver_varibles.csv", row.names = FALSE)
 
 #### secchi and shoreline driver variables ####
 #there are duplicates of these variables because of multiple surveys 

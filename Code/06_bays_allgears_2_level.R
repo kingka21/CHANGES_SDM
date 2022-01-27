@@ -1,8 +1,8 @@
-# modeling 3 level hierarchical model with varying intercepts and all gears combined
+# modeling hierarchical model with varying intercepts and all gears combined
 #written by Katelyn King and Henrique Giacomini
 #code adapted from Tyler Wagner 
 #separating catches from different gears
-#add another level in the model (the site, with multiple catch values, as a random factor). 
+#removed the lake grouping 
 
 #load libraries 
 library(R2jags)
@@ -52,7 +52,8 @@ hist(log(dat$fish_count_new))
 #################################################################
 ########## BUGS CODE ############################################
 #################################################################
-#hierarchical model with varying intercepts 
+
+#hierarchical model without the lake groups (with varying intercepts by fmu)
 sink("model.txt")
 cat("
     model {
@@ -61,31 +62,24 @@ cat("
     for (i in 1:n){         
     y[i] ~ dpois(lambda[i])  # Distribution Poisson  
     log(lambda[i]) <- log.lambda[i] # log-link 
-    log.lambda[i] <- alpha[site[i]] + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + b[4] * x4[i] + 
+    log.lambda[i] <- alpha[group[i]] + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + b[4] * x4[i] + 
                        b[5] * x5[i] + b[6] * x6[i] + b[7] * x7[i] + b[8] * x8[i] + b[9] * x9[i] + b[10] * x10[i] +
                       b[11] * x11[i] + b[12] * x12[i]  + b[13] * x13[i] + 
                       logq[gear[i]]*IND[i] + logeffort[i]
          
     } 
     
-    # Level-2 of the model: site 
-    for(s in 1:nsites){
-    alpha[s] ~ dnorm(mu.alpha[group[s]],tau.alpha)
-    }
-    
-     # Level-3 of the model: group (fisheries management unit regions) 
+     # Level-2 of the model: group (fisheries management unit regions) 
     for(j in 1:J){
-    mu.alpha[j] ~ dnorm(mu.alpha2,tau.alpha2)
+    alpha[j] ~ dnorm(mu.alpha,tau.alpha)
     }
     
     # Priors
-    mu.alpha2 ~ dnorm(0, 0.0001)
+    mu.alpha ~ dnorm(0, 0.0001)
     sigma.alpha ~ dunif(0,100)
-    sigma.alpha2 ~ dunif(0,100)
     
     #derived quantities 
     tau.alpha <- pow(sigma.alpha,-2)
-    tau.alpha2 <- pow(sigma.alpha2,-2)
     
     # priors for predictors 
     for(k in 1:13){
@@ -103,14 +97,14 @@ sink()
 
 
 ### set parameters ####
-# Initial values
+# Initial values assign for random variables 
 inits <- function (){
-  list (mu.alpha = rnorm(8))
+  list (alpha = rnorm(8))
 }
 
 
 # Parameters monitored
-parameters <- c("alpha", "mu.alpha","tau.alpha", "mu.alpha2","tau.alpha2","b", 'logq')
+parameters <- c("alpha", "mu.alpha","tau.alpha", "b", 'logq')
 
 
 # MCMC settings
@@ -122,9 +116,6 @@ nc <- 3 #number of chains
 
 #### set up data #### 
 
-#set the number of sites and create site index 
-nsites<-length(unique(dat$new_key))
-site <- as.numeric(as.factor(dat$new_key))
 
 # Set the number of FMUs 
 J <- length(unique(dat$FMU_Code))
@@ -132,7 +123,6 @@ J <- length(unique(dat$FMU_Code))
 # Create group index, must go from 1,..J
 dat$FMU_Code <- droplevels(as.factor(dat$FMU_Code))
 dat$group <- as.numeric(as.factor(dat$FMU_Code))
-group <- doBy::summaryBy(group ~ new_key, data=dat, FUN=mean) #need region to be indexed by site
 
 #set number of different sampling gears used and set a gear index 
 ngears<-length(unique(dat$gear2))
@@ -142,11 +132,11 @@ gear <- as.numeric(as.factor(dat$gear2))
 dat$IND<-ifelse(dat$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
 
 # Load data
-data <- list(y = dat$fish_count_new, group = group$group.mean, gear=gear, n = dim(dat)[1], J = J, ngears = ngears,
+data <- list(y = dat$fish_count_new, group = dat$group, gear=gear, n = dim(dat)[1], J = J, ngears = ngears,
              x1=dat$z_secchi, x2=dat$z_lake_area, x3=dat$z_dd_mean, x4=dat$z_perim_km, x5=dat$z_order, x6=dat$z_ws_area_km2, 
              x7=dat$z_ws_urban, x8=dat$z_ws_forest, x9=dat$z_ws_agriculture, x10=dat$z_ws_shrub, x11=dat$z_ws_wetland, 
              x12=dat$z_ws_slope, x13=dat$z_ws_elevation,
-             logeffort=dat$logeffort, IND=dat$IND, nsites = nsites, site =site
+             logeffort=dat$logeffort, IND=dat$IND
 ) 
 
 ### run the model using JAGS and R ####
@@ -166,8 +156,8 @@ cat('Posterior computed in ', elapsed.time, ' minutes\n\n', sep='')
 # Summarize posteriors
 print(output, dig = 3)
 #save output 
-jag.sum<-output$BUGSoutput$summary
-write.table(x=jag.sum,file="out.txt",sep="\t")
+#jag.sum<-output$BUGSoutput$summary
+#write.table(x=jag.sum,file="out.txt",sep="\t")
 
 #in this case, logq1 is FT which is neutral, 2 is gill, 3 is seine, 4 is shock 
 #check convergence with Brooks-Gelman-Rubin statistic

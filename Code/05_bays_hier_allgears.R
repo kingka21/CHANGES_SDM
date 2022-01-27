@@ -1,7 +1,7 @@
-# modeling hierarchical model with varying intercepts and all gears combined
+# modeling hierarchical model using total catch as response, with varying intercepts and all gears combined
 #written by Katelyn King and Henrique Giacomini
 #code adapted from Tyler Wagner 
-#using total catch as response, use Poisson distribution 
+#Poisson distribution 
 # there is the option of separating catches from different gears, would add another level in the model (the site, with multiple catch values, as a random factor). 
 
 
