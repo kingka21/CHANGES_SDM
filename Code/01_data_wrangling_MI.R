@@ -69,7 +69,7 @@ driver_vars<-left_join(lake_join, ws_vars) %>%
 #put all column names to lowercase for consistency  
 names(driver_vars)<-tolower(names(driver_vars))  
 #re-order columns 
-driver_vars <- driver_vars[, c(1, 13, 2, 3, 4, 5, 6, 7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28)]
+#driver_vars <- driver_vars[, c(1, 13, 2, 3, 4, 5, 6, 7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28)]
 
 #duplicates come from multiple temp measures on diff polys based on area
 dups<-driver_vars %>% 
@@ -78,7 +78,7 @@ dups<-driver_vars %>%
 #dont remove duplicates yet  
 
 
-write.csv(driver_vars, "Data/driver_varibles.csv", row.names = FALSE)
+#write.csv(driver_vars, "Data/driver_varibles.csv", row.names = FALSE)
 
 #### secchi and shoreline driver variables ####
 #there are duplicates of these variables because of multiple surveys 
@@ -150,7 +150,7 @@ temp_do_measures<-left_join(top, bottom) %>%
 
 ### for all DO/temp measures, use the deepest basin in a lake. 
 
-write.csv(temp_do_measures, "Data/temp_do_measures_MI.csv", row.names = FALSE)
+#write.csv(temp_do_measures, "Data/temp_do_measures_MI.csv", row.names = FALSE)
 
 #### TDO3 #####
 #remove NAs to interpolate temperature at 3mg/L DO 
@@ -188,7 +188,7 @@ abline(v = 3, col = "#ff0000") # x value
 abline(h = 23.9, col = 'blue') # y value 
 
 #
-write.csv(TDO3, "Data/TDO3_MI.csv", row.names = FALSE)
+#write.csv(TDO3, "Data/TDO3_MI.csv", row.names = FALSE)
 
 
 ############################
@@ -264,7 +264,7 @@ sp_wide_cpue<-tidyr::pivot_wider(data= count_data,
                          #  values_fn = list(cpue = sum)) #adds up all of the catch data
 
 sp_wide_count<-tidyr::pivot_wider(data= count_data, 
-                                 id_cols = c(new_key.y, gear2), #note that you lose information on effort 
+                                 id_cols = c(new_key.y, gear), #note that you lose information on effort 
                                  names_from = species, 
                                  values_from = fish_count, 
                                  values_fill = list(fish_count = 0)) #replace NAs with 0
@@ -436,3 +436,12 @@ anova(lm(log(lmb) ~ gear2, data = dat_no0, na.action = na.omit ))
 library(agricolae) #LSD test
 LSD<-LSD.test(log(dat_no0$lmb), dat_no0$gear2, 645, 1.559, alpha=0.05)  #specify the DF and MSE of the residuals
 LSD$groups
+
+
+### match to temp data from Winslow 
+winslow_lakes<-read.table(file = "/Users/katelynking/Desktop/NLDAS_thermal_metrics.tsv", sep = '\t', header = TRUE) %>%
+  distinct(site_id, .keep_all = TRUE)
+
+all_lakes<-catch_data%>% distinct(ihdlkid)
+lakes_with_temps<-left_join(all_lakes, winslow_lakes, by=c('ihdlkid' = 'site_id'))
+  

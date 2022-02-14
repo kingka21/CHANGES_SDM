@@ -2,8 +2,13 @@
 #Bayesian approach - BRMS package 
 install.packages('brms')
 install.packages('rstan')
+install.packages('ggmcmc') #package for analyzing MCMC output 
+install.packages('tidybayes')
 library(brms)
 library(rstan)
+library(ggmcmc)
+library(tidybayes)
+library(dplyr)
 
 #test run to see if brms works 
 BRM1 <- brm(weight ~ Diet, data = ChickWeight) 
@@ -11,11 +16,19 @@ summary(BRM1)
 
 #### data ####
 #need to keep all the gears used in a lake even if that gear did not catch sp of interest 
+#need to add a gear with effor 0 and catch 0 to all lakes 
 
 #count_lmb has count, effort by gear
 #join tables for LMB 
-dat<-lmb_dat_for_model %>% # 472 unique lakes, but 41 lakes don't match the drivers with the nhdid
-  left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
+#dat<-lmb_dat_for_model %>% # 472 unique lakes, but 41 lakes don't match the drivers with the nhdid
+  #left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
+#save data for now so that I can update model easily while still in the trial and error phase 
+#write.csv(dat, 'Data/lmb_model_data_feb10.csv', row.names = FALSE)
+dat<-read.csv('Data/lmb_model_data_feb10.csv')
+
+#create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
+dat$IND<-ifelse(dat$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
+
 
 ## standardize and transform predictor values ##
 # Note that scaling numeric predictors benefits here and makes specifying the prior easier as well.
@@ -36,6 +49,212 @@ dat$z_houses<-as.numeric(scale(log(dat$houses_km+ 0.001))) #ok
 
 dat$logeffort <- log(dat$effort_new)
 
+#### plot some data #####
+ggplot(data  = dat,
+       aes(x = z_dd_mean,
+           y = log(fish_count_new)))+
+  geom_point(size = 1.2,
+             alpha = .8,
+             position = "jitter")+# to add some random noise for plotting purposes
+  geom_smooth(method = lm,
+              se     = FALSE, 
+              col    = "black",
+              size   = .5, 
+              alpha  = .8)+ # to add regression line
+  theme_minimal()+
+  labs(title = "fish count vs. DD temp ")
+
+#### plot by group #####
+ggplot(data  = dat,
+       aes(x = z_dd_mean,
+           y = log(fish_count_new), 
+           col = gear2, 
+           group = gear2))+ #add colors for gear
+  geom_point(size = 1.2,
+             alpha = .8,
+             position = "jitter")+# to add some random noise for plotting purposes
+  geom_smooth(method = lm,
+              se     = FALSE, 
+              size   = .5, 
+              alpha  = .8)+ # to add regression line
+  theme_minimal()+
+  labs(title = "fish count vs. DD temp ")
+
+#### intercept only model #### 
+interceptonlymodel <- brm(fish_count_new ~ 1 + (1|FMU_Code),  
+                          data = dat, 
+                          warmup = 1000, iter = 3000, 
+                          cores = 2, chains = 2, 
+                          seed = 123
+                          ) 
+summary(interceptonlymodel)
+hyp <- "sd_FMU_Code__Intercept^2 / (sd_FMU_Code__Intercept^2 + sigma^2) = 0"
+hypothesis(interceptonlymodel, hyp, class = NULL)
+
+#### first level predictors #### 
+#note that for this model you will have to ignore the convergence checks for anything with IND because it is neutral 
+model_1<-brm(fish_count_new ~ 1 + z_lake_area + z_dd_mean + gear2*IND + offset(logeffort) + #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  #a “1” in the formula the function indicates the intercept.
+               (1 | new_key),  # the lake level effect).#varying intercept if there is a 1 in front of the line 
+             data = dat,
+             family = zero_inflated_poisson(link = "log"), #family argument to specify distribution of the response 
+             chains = 2,cores = 2, 
+             warmup = 1000, iter = 3000)
+summary(model_1)
+#posterior checks 
+plot(model_1) #can use the brms default to plot or the code below 
+
+#plot conditional effects of each pred
+conditional_effects(model_1)
+get_variables(model_1) #see all of the estimated parameters 
+
+model1tranformed <- ggs(model_1) # the ggs function transforms the brms output into a longformat tibble, that we can use to make different types of plots.
+
+#caterpillar plots 
+ggplot(filter(model1tranformed, Parameter %in% c("b_Intercept", "b_z_lake_area", "b_z_dd_mean")),
+       aes(x   = Iteration,
+           y   = value, 
+           col = as.factor(Chain)))+
+  geom_line() +
+  geom_vline(xintercept = 1000)+
+  facet_grid(Parameter ~ . ,
+             scale  = 'free_y',
+             switch = 'y')+
+  labs(title = "Caterpillar Plots", 
+       col   = "Chains")
+
+# posterior density plots 
+ggplot(filter(model1tranformed,Parameter == "b_Intercept", Iteration > 1000),aes(x = value))+
+  geom_density(fill  = "yellow", alpha = .5)+
+  geom_vline(xintercept = 0, col  = "red", size = 1)+ 
+  geom_vline(xintercept = summary(model_1)$fixed[1,3], #lower CI 
+             col = "blue",
+             linetype = 2) +
+  geom_vline(xintercept = summary(model_1)$fixed[1,4], #upper CI 
+             col = "blue",
+             linetype = 2) +
+  theme_light() +
+  labs(title = "Posterior Density of Intercept")
+
+#lake area
+ggplot(filter(model1tranformed,
+              Parameter == "b_z_lake_area", 
+              Iteration > 1000),
+       aes(x = value))+
+  geom_density(fill  = "orange", 
+               alpha = .5)+
+  geom_vline(xintercept = 0, 
+             col  = "red",
+             size = 1)+ 
+  geom_vline(xintercept = summary(model_1)$fixed[2,3], #lower CI 
+             col = "blue",
+             linetype = 2) +
+  geom_vline(xintercept = summary(model_1)$fixed[2,4], #upper CI 
+             col = "blue",
+             linetype = 2) +
+  theme_light() +
+  labs(title = "Posterior Density of area")
+
+#temp
+ggplot(filter(model1tranformed,
+              Parameter == "b_z_dd_mean", 
+              Iteration > 1000),
+       aes(x = value))+
+  geom_density(fill  = "orange", 
+               alpha = .5)+
+  geom_vline(xintercept = 0, 
+             col  = "red",
+             size = 1)+ 
+  geom_vline(xintercept = summary(model_1)$fixed[3,3], #lower CI 
+             col = "blue",
+             linetype = 2) +
+  geom_vline(xintercept = summary(model_1)$fixed[3,4], #upper CI 
+             col = "blue",
+             linetype = 2) +
+  theme_light() +
+  labs(title = "Posterior Density of temp")
+
+#### add 2nd level predictors #### 
+#just add the predictors e.g. a hu4 variable 
+#fish_count_new ~ z_lake_area + z_dd_mean + ag_hu4 + offset(logeffort) + (1 | gear2)
+
+#calculate explained variance at each level if you have predictors at a different level 
+#use the intercept only model and residual variance at the group-level (level 2) is 0.85^2 - 2level model 0.55^2 / intercept only model 0.85^2 = 0.58 
+(0.85^2 -  0.55^2) / 0.85^2
+#residual variance family level (individual level 1): intercept only model 1.11^2 - 2level model 0.77^2 / intercept only model 1.11^2 = 0.52
+(1.11^2 - 0.77^2) /  1.11^2
+
+#### random slopes  #### 
+model2<-brm(fish_count_new ~ 1 + z_lake_area + z_dd_mean + offset(logeffort) + #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  #a “1” in the formula the function indicates the intercept.
+               (1 + z_lake_area + z_dd_mean | gear2),  # varying slopes for both predictor variables 
+             data = dat,
+             family = poisson(link = "log"), #family argument to specify distribution of the response 
+             chains = 2,cores = 2, 
+             warmup = 1000, iter = 3000)
+summary(model2)
+get_variables(model2) #see all of the estimated parameters 
+
+#plot varying slopes and intercepts
+
+
+#nice summary table of gears 
+model2 %>%
+  spread_draws(r_gear2[gear,term]) %>%
+  summarise_draws() #
+
+model2 %>%
+  spread_draws(r_gear2[gear,term]) %>%
+  mean_qi() #get the mean and 95% CI for each variable #can also do median_qi 
+
+#### posterior means and predictions ####
+#plot posterior means 
+dat %>%
+  modelr::data_grid(gear2, z_lake_area, z_dd_mean, logeffort) %>% #think you have to include all variables in the model 
+  add_epred_draws(model2) %>%
+  ggplot(aes(x = .epred, y = gear2)) +
+  stat_halfeye(.width = c(.95)) #specify CI usiung the width command 
+
+#plot posterior prediction distributions 
+dat %>%
+  modelr::data_grid(gear2, z_lake_area, z_dd_mean, logeffort) %>%
+  add_predicted_draws(model2) %>%
+  ggplot(aes(x = .prediction, y = gear2)) +
+  ggdist::stat_slab()
+
+#this timed out - not enough memory 
+dat %>%
+  group_by(gear2) %>%
+  modelr::data_grid(gear2, z_lake_area, z_dd_mean, logeffort) %>%
+  add_epred_draws(model2) %>%
+  ggplot(aes(x = z_lake_area, y = fish_count_new, color = ordered(gear2))) +
+  stat_lineribbon(aes(y = .epred)) +
+  geom_point(data = dat) +
+  scale_fill_brewer(palette = "Greys") +
+  scale_color_brewer(palette = "Set2")
+
+#### cross-scale interactions #### 
+#texp is a class level  (level-2) variable and extrav is an individual level (level-1) variable 
+model5 <- brm(popular ~ 1 + sex + extrav + texp + extrav:texp + #the : between them is the cross-scale interaction
+                (1 + extrav|class), #still include the random slopes of extrav with class 
+              data  = popular2data, warmup = 1000,
+              iter  = 3000, chains = 2, 
+              seed  = 123, control = list(adapt_delta = 0.97),
+              cores = 2) # 
+
+#plot varying slopes and intercepts  of the CSI 
+ggplot(data = popular2data, 
+       aes(x   = extrav,
+           y   = popular,
+           col = as.factor(texp)))+
+  viridis::scale_color_viridis(discrete = TRUE)+
+  geom_point(size     = .7,
+             alpha    = .8,
+             position = "jitter")+
+  geom_smooth(method = lm,
+              se     = FALSE, 
+              size   = 2,
+              alpha  = .8)+
+  theme_minimal()+
+  labs(title    = "Linear Relationship between Different Years of Teacher Experience and Extrav")
 
 #### setting up the model in BRMS #### 
 for (i in 1:n){         
@@ -62,11 +281,10 @@ for(j in 1:J){
 #Varying intercepts are regularized by estimating how diverse the clusters are while estimating the features of each cluster. 
 #A major benefit of using varying effects estimates is that they provide more accurate estimates of the individual cluster intercepts. 
 #On average, the varying effects actually provide a better estimate of the individual cluster means. The reason that the varying intercepts provide better estimates is that they do a better job of trading off underfitting and overfitting.
-model_1<-brm(fish_count_new ~ z_lake_area + z_dd_mean + gear2 + offset(logeffort) + #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  
+model_1<-brm(fish_count_new ~ 1 + z_lake_area + z_dd_mean + gear2 + offset(logeffort) + #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  
               (1 | gear2),  # the lake level effect).#varying intercept if there is a 1 in front of the line 
             data = dat,
             family = poisson(link = "log"), #family argument to specify distribution of the response 
-        
             chains = 2,
             cores = 2, 
             iter = 4000)
