@@ -93,10 +93,10 @@ hypothesis(interceptonlymodel, hyp, class = NULL)
 
 #### first level predictors #### 
 #note that for this model you will have to ignore the convergence checks for anything with IND because it is neutral 
-model_1<-brm(fish_count_new ~ 1 + z_lake_area + z_dd_mean + gear2*IND + offset(logeffort) + #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  #a “1” in the formula the function indicates the intercept.
-               (1 | new_key),  # the lake level effect).#varying intercept if there is a 1 in front of the line 
+model_1<-brm(fish_count_new ~ 1 + z_lake_area + z_dd_mean + z_secchi + julian + maxdepth_m + gear2*IND + offset(logeffort), #+ #offset is not a parameter to be estimated - its value is added directly onto the right side of the formula  #a “1” in the formula the function indicates the intercept.
+               #(1 | FMU_Code),  # the lake level effect).#varying intercept if there is a 1 in front of the line 
              data = dat,
-             family = zero_inflated_poisson(link = "log"), #family argument to specify distribution of the response 
+             family = poisson(link = "log"), #family argument to specify distribution of the response 
              chains = 2,cores = 2, 
              warmup = 1000, iter = 3000)
 summary(model_1)
@@ -136,40 +136,20 @@ ggplot(filter(model1tranformed,Parameter == "b_Intercept", Iteration > 1000),aes
   labs(title = "Posterior Density of Intercept")
 
 #lake area
-ggplot(filter(model1tranformed,
-              Parameter == "b_z_lake_area", 
-              Iteration > 1000),
-       aes(x = value))+
-  geom_density(fill  = "orange", 
-               alpha = .5)+
-  geom_vline(xintercept = 0, 
-             col  = "red",
-             size = 1)+ 
-  geom_vline(xintercept = summary(model_1)$fixed[2,3], #lower CI 
-             col = "blue",
-             linetype = 2) +
-  geom_vline(xintercept = summary(model_1)$fixed[2,4], #upper CI 
-             col = "blue",
-             linetype = 2) +
+ggplot(filter(model1tranformed,Parameter == "b_z_lake_area", Iteration > 1000), aes(x = value))+
+  geom_density(fill  = "orange", alpha = .5)+
+  geom_vline(xintercept = 0,  col  = "red", size = 1)+ 
+  geom_vline(xintercept = summary(model_1)$fixed[2,3], col = "blue",  linetype = 2) + #lower CI 
+  geom_vline(xintercept = summary(model_1)$fixed[2,4], col = "blue",linetype = 2) +  #upper CI 
   theme_light() +
   labs(title = "Posterior Density of area")
 
 #temp
-ggplot(filter(model1tranformed,
-              Parameter == "b_z_dd_mean", 
-              Iteration > 1000),
-       aes(x = value))+
-  geom_density(fill  = "orange", 
-               alpha = .5)+
-  geom_vline(xintercept = 0, 
-             col  = "red",
-             size = 1)+ 
-  geom_vline(xintercept = summary(model_1)$fixed[3,3], #lower CI 
-             col = "blue",
-             linetype = 2) +
-  geom_vline(xintercept = summary(model_1)$fixed[3,4], #upper CI 
-             col = "blue",
-             linetype = 2) +
+ggplot(filter(model1tranformed, Parameter == "b_z_dd_mean", Iteration > 1000), aes(x = value))+
+  geom_density(fill  = "orange",   alpha = .5)+
+  geom_vline(xintercept = 0, col  = "red",  size = 1)+ 
+  geom_vline(xintercept = summary(model_1)$fixed[3,3], col = "blue",  linetype = 2) + #lower CI
+  geom_vline(xintercept = summary(model_1)$fixed[3,4],  col = "blue", linetype = 2) + #upper CI 
   theme_light() +
   labs(title = "Posterior Density of temp")
 
