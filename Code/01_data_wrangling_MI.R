@@ -152,6 +152,7 @@ temp_do_measures<-left_join(top, bottom) %>%
   left_join(thermo_depth)
 
 ### for all DO/temp measures, use the deepest basin in a lake. 
+temp_do<-read.csv("Data/MI_data/temp_do_measures_MI.csv")
 temp_do_no_dups<-temp_do %>%
   group_by(survey_number) %>%
   slice_max(bottom_depth_m)
