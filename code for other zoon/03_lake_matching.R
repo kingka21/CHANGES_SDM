@@ -9,12 +9,13 @@ library(raster)
 library(ggplot2)
 library(mapview)
 library(rgeos)
+library(tidyr)
 
 #read in lagos lake link and see if that match works
-lagos_lake_link<-read.csv("/Users/katelynking/Desktop/Cont Limno/lake_link_Jan2021.csv") %>%
+lagos_lake_link<-read.csv("/Users/katelynking/Desktop/LAGOS_US/lake_link.csv") %>%
           dplyr::select(lagoslakeid, lake_nhdid) 
 lagos_lakes<- lagos_lake_link[!duplicated(paste(lagos_lake_link$lake_nhdid)),]
-lake_link<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/new_key_comid_translate.csv")
+lake_link<-read.csv("Data/MI_data/new_key_comid_translate.csv")
 join<-left_join(lake_link, lagos_lakes, by=c('COMID' = "lake_nhdid"))
 join<-join[!is.na(join$lagoslakei),] #only 7751 - not much more than the join with the lake polys 
 
@@ -65,5 +66,44 @@ humph<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/lake_matching/HUMPHRIES
 #add a buffer around lakes using rgeos
 lakes_buf<-gBuffer(MI_poly, byid=TRUE, width=50) #must be sp object, byid buffers all geometries, 
 
+########################################
+### try matching to Winslow lakes ###########
+##################################################
+winslow<-read.table("/Users/katelynking/Desktop/Winslow data/NLDAS_thermal_metrics.tsv", sep = '\t', header = TRUE) %>%
+  select(year, site_id, gdd_wtr_0c, gdd_wtr_5c, gdd_wtr_10c)
+dd_temp<-read.csv("Data/MI_data/lake_degree_days_year.csv") %>% 
+  rename(dnr_nhdid=IHDLKID) %>% 
+  select(-c(FETCH_M, ZMAX_M, ZAVE_M, D)) %>%
+  pivot_longer(cols = starts_with("DD"),
+               names_to = "year",
+               names_prefix = "DD_",
+               values_to = "ggd_dnr")
+dd_temp$dnr_nhdid<-as.character(as.integer(dd_temp$dnr_nhdid))
+dd_temp$year<-as.integer(as.character(dd_temp$year))
 
+#dnr_winslow<-left_join(lake_link, winslow, by=c("nhdid" = "site_id")) #nothing matches :( 
 
+winslow_lagos<-read.csv("/Users/katelynking/Desktop/Winslow data/Winslow_LAGOS_Xwalk.csv")
+winslow_lagos$winslow_nhdid<- gsub("nhd_", "", winslow_lagos$site_id)
+lagos_lakes<- lagos_lake_link[!duplicated(paste(lagos_lake_link$lake_nhdid)),]
+
+lagos_cross<-left_join(winslow_lagos, lagos_lakes) %>% 
+  select(lagoslakeid, winslow_nhdid, lake_nhdid) #here nhdid is from Winslow and lake_nhdid is from lagos crosswalk
+
+lake_link$dnr_nhdid<-as.character(as.integer(lake_link$nhdid))
+winslow$site_id<-as.character(as.integer(winslow$site_id))
+
+dnr_winslow<-left_join(lake_link, lagos_cross, by=c("dnr_nhdid"="lake_nhdid")) %>% #1706 to match 
+        left_join(winslow, by=c("winslow_nhdid" = "site_id")) %>%
+        drop_na(winslow_nhdid) %>% 
+  left_join(dd_temp, by=c("dnr_nhdid","year")) %>% 
+  group_by(dnr_nhdid, year) %>% 
+  filter(n() == 1) #get rid of duplicates 
+plot(dnr_winslow$gdd_wtr_0c, dnr_winslow$ggd_dnr)
+boxplot(dnr_winslow$gdd_wtr_0c, dnr_winslow$ggd_dnr)
+t.test(dnr_winslow$gdd_wtr_0c, dnr_winslow$ggd_dnr)
+
+#look at duplicates in the temp variables
+dups<-dnr_winslow %>% 
+      group_by(dnr_nhdid, year) %>% 
+      filter(n() > 1)
