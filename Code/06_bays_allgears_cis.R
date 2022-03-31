@@ -37,15 +37,14 @@ dat$logeffort <- log(dat$effort_new)
 hist(dat$fish_count_new)
 hist(log(dat$fish_count_new))
 
-dat<-dplyr::select(dat, new_key, fish_count_new, logeffort, gear2, FMU_Code, 
-                   z_lake_area, z_geom, z_secchi, z_julian, 
-                   z_dd_mean, z_bottom_do, z_tdo3,
-                   z_ws_forest, z_ws_wetland) %>%
+dat<-dplyr::select(dat, new_key, fish_count_new, logeffort, gear2, FMU_Code, z_julian,
+                   z_geom, z_secchi,  
+                   z_dd_mean, z_ws_forest) %>%
   na.omit()
 
 n_distinct(dat$new_key) #157 lakes (getting rid of depth gives more lakes)
 #check for collinearity 
-my_data <- dat[, c(7:15)] 
+my_data <- dat[, c(7:11)] 
 PerformanceAnalytics::chart.Correlation(my_data, histogram=TRUE, pch=19)
 #lake area and watershed - keep lake area 
 #max depth and bottom temp - keep max depth 
@@ -77,7 +76,7 @@ cat("
     y[i] ~ dpois(lambda[i])  # Distribution Poisson  
     log(lambda[i]) <- log.lambda[i] # log-link 
     log.lambda[i] <- alpha + b[1] * x1[i] + b[2] * x2[i] + b[3] * x3[i] + b[4] * x4[i] + 
-                       b[5] * x5[i] + b[6] * x6[i] + b[7] * x7[i] + b[8] * x8[i] + b[9] * x9[i] + 
+                       b[5] * x5[i] +
                       logq[gear[i]]*IND[i] + logeffort[i]
          
     } 
@@ -86,7 +85,7 @@ cat("
     alpha ~ dnorm(0, 0.0001)
     
     # priors for predictors 
-    for(k in 1:9){
+    for(k in 1:5){
     b[k] ~ dnorm(0,3)
     }
     
@@ -130,8 +129,8 @@ dat$IND<-ifelse(dat$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
 
 # Load data
 data <- list(y = dat$fish_count_new, gear=gear, n = dim(dat)[1], ngears = ngears,
-             x1=dat$z_secchi, x2=dat$z_lake_area, x3=dat$z_dd_mean, x4=dat$z_geom, x5=dat$z_julian, x6=dat$z_bottom_do,
-             x7=dat$z_ws_forest, x8=dat$z_ws_wetland, x9=dat$z_tdo3,
+             x1=dat$z_julian, x2=dat$z_geom, x3=dat$z_secchi, x4=dat$z_dd_mean,
+             x5=dat$z_ws_forest,  
              logeffort=dat$logeffort, IND=dat$IND
 ) 
 
@@ -162,10 +161,10 @@ which(output$BUGSoutput$summary[, c("Rhat")] > 1.1)
 #look at trace plots 
 #R2jags::traceplot(output)
 
-saveRDS(output, "Data/output/model_output_cis.rds") 
+#saveRDS(output, "Data/output/model_output_cis.rds") 
 
 #read in output 
-#output <- readRDS("Data/output/model_output.rds") 
+#output_cis <- readRDS("Data/output/model_output_cis.rds") 
 #density plots
 # use as.mcmmc to convert rjags object into mcmc.list - plots in coda
 jagsfit.mcmc <- as.mcmc(output)
@@ -193,35 +192,20 @@ ggplot(filter(model1tranformed,Parameter == "b[1]", Iteration > 1000),aes(x = va
 library(dotwhisker)
 
 #betas
-bEst <- matrix(NA, nrow=8,ncol=3)
-for(i in 1:8){ #parameters
+bEst <- matrix(NA, nrow=5,ncol=3)
+for(i in 1:5){ #parameters
   bEst[i,1] <- mean(output$BUGSoutput$sims.list$b[,i])
   bEst[i,2:3] <- quantile(output$BUGSoutput$sims.list$b[,i],c(0.05,0.95))
 }
 bEst<-as.data.frame(bEst)
-bEst$variable<-c("Secchi", "lake area", "surface temp", "shoreline complexity", "julian day", "bottom_do", 
-                 "ws agriculture", "ws wetland")
-
-
-#logqs
-qEst <- matrix(NA, nrow=4,ncol=3)
-for(i in 1:4){ #gear catchability without the reference gear 
-  qEst[i,1] <- mean(output$BUGSoutput$sims.list$logq[,i])
-  qEst[i,2:3] <- quantile(output$BUGSoutput$sims.list$logq[,i],c(0.05,0.95))
-}
-qEst<-as.data.frame(qEst)
-qEst$variable<-c("fyke_ref", "gill", "seine", "shock")
-qEst<- filter(qEst, variable != "fyke_ref") #remove reference
-
-#combine datasets 
-EstsLake <- gtools::smartbind(bEst,qEst)
-colnames(EstsLake)<- c("estimate", "conf.low", "conf.high", "term")
+bEst$variable<-c("julian day", "area", "tdo3", "dd_mean", 
+                 "ws forest")
+ 
 colnames(bEst)<- c("estimate", "conf.low", "conf.high", "term")
 
 #add colors for sig different than 0
-EstsLake$color <- as.numeric(EstsLake[,2] * EstsLake[,3] > 0 )
 bEst$color <- as.numeric(bEst[,2] * bEst[,3] > 0 )
-bEst$Parameter <-c("b[1]", "b[2]", "b[3]", "b[4]","b[5]","b[6]","b[7]","b[8]")
+bEst$Parameter <-c("b[1]", "b[2]", "b[3]", "b[4]","b[5]")
 
 # plot using the dotwhisker package 
 dwplot(bEst, style = "dotwhisker", 
@@ -231,7 +215,7 @@ dwplot(bEst, style = "dotwhisker",
   scale_colour_manual(values= c("black", "blue")) +    
   theme_bw() + 
   xlab("Estimated effect") + ylab("Covariate") +
-  ggtitle("Michigan LMB") + 
+  ggtitle("Michigan CIS") + 
   theme(plot.title = element_text(hjust = 0.5)) + 
   theme(legend.position = "none") 
 
@@ -242,7 +226,7 @@ model1tranformed %>%
   ggplot(aes(x = value, y = term, fill= factor(color))) +
   geom_vline(xintercept = 0, colour = "grey60", linetype = 2) + 
   scale_fill_manual(values= c("gray80", "skyblue")) +
-  stat_halfeye(.width = c(.05, .95)) + 
+  ggdist::stat_halfeye(.width = c(.05, .95)) + 
   theme_bw() 
 
 

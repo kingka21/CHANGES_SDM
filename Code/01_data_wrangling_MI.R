@@ -59,10 +59,13 @@ dd_mean<-dplyr::select(dd_temp, IHDLKID, HECTARES, dd_mean)%>%
 
 #combine temperature by id and area # no dups if you include different lake sizes! 
 temp_dat<-left_join(dd_mean, surface_mean, by=c("nhdid", "HECTARES")) %>% 
-  rename(lake_area_ha = HECTARES)
-#look at duplicates in the temp variables
+  rename(lake_area_ha = HECTARES) %>% 
+  group_by(nhdid) %>%
+  slice_max(lake_area_ha) #use the larger area for dups, usually separated basins
+
+#look at duplicates in the temp variables, multiple temp measures on diff polys based on area (selected largest above)
 #dups<-temp_dat %>% 
-  #group_by(ihdlkid, lake_area_ha) %>% 
+ # group_by(nhdid, lake_area_ha) %>% 
   #filter(n() > 1)
 
 #join driver variables 
@@ -73,12 +76,11 @@ names(driver_vars)<-tolower(names(driver_vars))
 #re-order columns 
 #driver_vars <- driver_vars[, c(1, 13, 2, 3, 4, 5, 6, 7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28)]
 
-#duplicates come from multiple temp measures on diff polys based on area
-dups<-driver_vars %>% 
-  drop_na(new_key) %>% 
-  group_by(new_key) %>% 
-  filter(n() > 1)
-#dont remove duplicates yet  
+#no dups! 
+#dups<-driver_vars %>% 
+ # drop_na(new_key) %>% 
+  #group_by(new_key) %>% 
+  #filter(n() > 1)
 
 #write.csv(driver_vars, "Data/driver_varibles.csv", row.names = FALSE)
 
@@ -149,14 +151,16 @@ bottom<-temp_do %>%
 
 #join new temp/do measures 
 temp_do_measures<-left_join(top, bottom) %>%
-  left_join(thermo_depth)
+  left_join(thermo_depth) %>%
+  group_by(survey_number) %>%
+  slice_max(bottom_depth_m)
 
 ### for all DO/temp measures, use the deepest basin in a lake. 
 temp_do<-read.csv("Data/MI_data/temp_do_measures_MI.csv")
 temp_do_no_dups<-temp_do %>%
   group_by(survey_number) %>%
   slice_max(bottom_depth_m)
-## SAVE  AGAIN WITH NO DUPS BUT ADD TO FUNCTION ABOVE
+## SAVE  AGAIN WITH NO DUPS BUT ADD TO FUNCTION ABOVE ON NEW COMP
 #write.csv(temp_do_measures, "Data/temp_do_measures_MI.csv", row.names = FALSE)
 
 #### TDO3 #####
@@ -347,14 +351,12 @@ walleye<-filter(count_data, species=='WAE') %>%
   select(-c(wae_pres2)) %>% 
   ungroup()
 
-#remove dups just for testing the model - need to come back and figure out exactly how to select the correct lake 
-drivers<-distinct(driver_vars, nhdid, .keep_all = TRUE)
 
 lake_ll<- lake_info[!duplicated(paste(lake_info$new_key)),] 
 
 #join for modeling: 
 lmb_dat_for_model<-left_join(lmb_new, secchi, by=c('new_key', "survey_number")) %>% 
-  left_join(drivers, by=c('new_key')) %>%
+  left_join(driver_vars, by=c('new_key')) %>%
   left_join(temp_do_no_dups) %>%
   left_join(pike, by=c('new_key', 'gear2')) %>% 
   left_join(walleye, by=c('new_key', 'gear2')) %>% 
@@ -364,6 +366,7 @@ lmb_dat_for_model<-left_join(lmb_new, secchi, by=c('new_key', "survey_number")) 
   left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
 # left_join(temp_do, by = "survey_number") - remove multiple basin, need just deepest
 
+write.csv(lmb_dat_for_model, "Data/lmb_dat_for_model_mar17.csv", row.names = FALSE)
 
 #if you want one row per lake 
 #count_lmb_format<-tidyr::pivot_wider(data= count_lmb, 
@@ -487,8 +490,8 @@ cis_dat_for_model<-left_join(cis_new, secchi, by=c('new_key', "survey_number")) 
 
 
 #### link catch data to drivers ####
-drivers<-read.csv( "Data/driver_varibles.csv")
-
+driver_vars<-read.csv("Data/driver_varibles.csv") %>%
+  distinct( nhdid, .keep_all = TRUE)
 #pull out lat/lon for spatial autocorrelation testing, mapping, modeling 
 lake_ll<- lake_info[!duplicated(paste(lake_info$new_key)),] 
 
