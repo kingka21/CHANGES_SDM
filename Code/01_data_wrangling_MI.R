@@ -51,11 +51,36 @@ surface_temp$surface_temp_mean<-rowMeans(surface_temp[,3:20])# take the means ac
 surface_mean<-dplyr::select(surface_temp, IHDLKID, HECTARES, surface_temp_mean) %>% 
                 rename(nhdid=IHDLKID)
 
+#surface temp by year 
+surface_temp<-read.csv("Data/MI_data/lake_surface_temp.csv")%>%
+  group_by(IHDLKID) %>%
+  slice_max(HECTARES) %>% 
+  rename(nhdid = IHDLKID)%>% 
+  pivot_longer(
+                 cols= starts_with("TAVE_"),
+                 names_to = "year", 
+                 names_prefix = "TAVE_",
+                 values_to = "surf_temp_year") %>% 
+  mutate(year = as.integer(as.character(year)))
+
+# DD average 
 dd_temp<-read.csv("Data/MI_data/lake_degree_days_year.csv") %>%
           dplyr:: select(IHDLKID, HECTARES, DD_2002:DD_2019)
 dd_temp$dd_mean<-rowMeans(dd_temp[,3:20])# take the means across the current years (2002-2019)
 dd_mean<-dplyr::select(dd_temp, IHDLKID, HECTARES, dd_mean)%>% 
           rename(nhdid=IHDLKID)
+
+#DD by year 
+dd_temp<-read.csv("Data/MI_data/lake_degree_days_year.csv")%>%
+  group_by(IHDLKID) %>%
+  slice_max(HECTARES) %>% 
+  rename(nhdid = IHDLKID)%>% 
+  pivot_longer(
+    cols= starts_with("DD_"),
+    names_to = "year", 
+    names_prefix = "DD_",
+    values_to = "dd_year") %>% 
+  mutate(year = as.integer(as.character(year)))
 
 #combine temperature by id and area # no dups if you include different lake sizes! 
 temp_dat<-left_join(dd_mean, surface_mean, by=c("nhdid", "HECTARES")) %>% 
@@ -73,8 +98,6 @@ driver_vars<-left_join(lake_join, ws_vars) %>%
   left_join(temp_dat, by=c('nhdid')) 
 #put all column names to lowercase for consistency  
 names(driver_vars)<-tolower(names(driver_vars))  
-#re-order columns 
-#driver_vars <- driver_vars[, c(1, 13, 2, 3, 4, 5, 6, 7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28)]
 
 #no dups! 
 #dups<-driver_vars %>% 
@@ -153,14 +176,10 @@ bottom<-temp_do %>%
 temp_do_measures<-left_join(top, bottom) %>%
   left_join(thermo_depth) %>%
   group_by(survey_number) %>%
-  slice_max(bottom_depth_m)
-
-### for all DO/temp measures, use the deepest basin in a lake. 
-temp_do<-read.csv("Data/MI_data/temp_do_measures_MI.csv")
-temp_do_no_dups<-temp_do %>%
+  slice_max(bottom_depth_m) %>%
   group_by(survey_number) %>%
-  slice_max(bottom_depth_m)
-## SAVE  AGAIN WITH NO DUPS BUT ADD TO FUNCTION ABOVE ON NEW COMP
+  slice_max(bottom_depth_m, with_ties = FALSE) # use the deepest basin in a lake. 
+
 #write.csv(temp_do_measures, "Data/temp_do_measures_MI.csv", row.names = FALSE)
 
 #### TDO3 #####
@@ -261,7 +280,8 @@ MI_data_no_dups<-catch_data %>%
 count_data<-dplyr::select(MI_data_no_dups, new_key, fmu_code, species, fish_count, gear, effort) %>%
     group_by(new_key, species, gear) %>%
     summarise_if(is.numeric, sum) %>% 
-  ungroup()
+  ungroup() %>%
+  filter(gear != "SMFYKE") #remove small mesh (mini) catches 
 
 
 #### LARGE MOUTH BASS DATA #### 
@@ -270,7 +290,8 @@ count_data<-dplyr::select(MI_data_no_dups, new_key, fmu_code, species, fish_coun
 count_lmb<-filter(count_data, species=='LMB')
 #link to effort table to include gear and lakes that did not catch LMB or where LMB was not present 
 all_effort<-left_join(effort, count_lmb, by=c('new_key' = 'new_key', 'GEAR'= 'gear')) %>%
-  dplyr::select(-c(effort, species ))
+  dplyr::select(-c(effort, species ))%>%
+  filter(GEAR != "SMFYKE") #remove small mesh (mini) catches 
 
 #put all column names to lowercase for consistency  
 names(all_effort)<-tolower(names(all_effort))
@@ -287,7 +308,6 @@ sample_dates<-dplyr::select(all_effort, new_key, survey_number, date, year, juli
   mutate(
   gear2 = case_when(       #combine gear types 
     gear == "LMFYKE" ~ 'FT_NET', 
-    gear == "SMFYKE" ~ 'FT_NET', 
     gear == "TRAPNET" ~ 'FT_NET', 
     gear == "GLGNET" ~ 'GILL', 
     gear == "IGNET" ~ 'GILL', 
@@ -303,7 +323,6 @@ lmb_new<-all_effort %>%
   mutate(
     gear2 = case_when(       #combine gear types 
     gear == "LMFYKE" ~ 'FT_NET', 
-    gear == "SMFYKE" ~ 'FT_NET', 
     gear == "TRAPNET" ~ 'FT_NET', 
     gear == "GLGNET" ~ 'GILL', 
     gear == "IGNET" ~ 'GILL', 
@@ -316,39 +335,41 @@ lmb_new<-all_effort %>%
 
 #add predator information (NOP=northern pike and WAE = walleye)
 pike<-filter(count_data, species=='NOP') %>% 
-      select(new_key, gear) %>% 
         mutate(pike_pres = 1) %>%
   mutate(
     gear2 = case_when(       #combine gear types 
       gear == "LMFYKE" ~ 'FT_NET', 
-      gear == "SMFYKE" ~ 'FT_NET', 
       gear == "TRAPNET" ~ 'FT_NET', 
       gear == "GLGNET" ~ 'GILL', 
       gear == "IGNET" ~ 'GILL', 
       gear == "SEINE" ~ 'SEINE', 
       gear == "BOOMSHK" ~ 'SHOCK'))  %>%
   group_by(new_key, gear2) %>% # group by lake and gear to combine gears 
-  summarize(pike_pres2 = sum(pike_pres)) %>%
-  mutate(pike_pres = 1) %>%
-  select(-c(pike_pres2)) %>% 
+  summarize(effort_new = sum(effort),
+            fish_count_new = sum(fish_count), 
+            pike_pres2 = sum(pike_pres)) %>%  
+  mutate(pike_pres = 1, 
+         pike_cpue = fish_count_new/effort_new) %>% #presence only 
+  select(-c(pike_pres2, fish_count_new, effort_new)) %>% 
   ungroup()
 
 walleye<-filter(count_data, species=='WAE') %>% 
-  select(new_key, gear) %>% 
   mutate(wae_pres = 1) %>%
   mutate(
     gear2 = case_when(       #combine gear types 
       gear == "LMFYKE" ~ 'FT_NET', 
-      gear == "SMFYKE" ~ 'FT_NET', 
       gear == "TRAPNET" ~ 'FT_NET', 
       gear == "GLGNET" ~ 'GILL', 
       gear == "IGNET" ~ 'GILL', 
       gear == "SEINE" ~ 'SEINE', 
       gear == "BOOMSHK" ~ 'SHOCK'))  %>%
   group_by(new_key, gear2) %>% # group by lake and gear to combine gears 
-  summarize(wae_pres2 = sum(wae_pres)) %>%
-  mutate(wae_pres = 1) %>%
-  select(-c(wae_pres2)) %>% 
+  summarize(effort_new = sum(effort),
+            fish_count_new = sum(fish_count), 
+            wae_pres2 = sum(wae_pres)) %>%  
+  mutate(wae_pres = 1, #presence only 
+         wae_cpue = fish_count_new/effort_new) %>% #cpue
+  select(-c(wae_pres2, fish_count_new, effort_new)) %>%
   ungroup()
 
 
@@ -357,16 +378,18 @@ lake_ll<- lake_info[!duplicated(paste(lake_info$new_key)),]
 #join for modeling: 
 lmb_dat_for_model<-left_join(lmb_new, secchi, by=c('new_key', "survey_number")) %>% 
   left_join(driver_vars, by=c('new_key')) %>%
-  left_join(temp_do_no_dups) %>%
+  left_join(temp_do_measures) %>%
   left_join(pike, by=c('new_key', 'gear2')) %>% 
   left_join(walleye, by=c('new_key', 'gear2')) %>% 
   mutate(pike_pres = ifelse(is.na(pike_pres), 0, pike_pres),
-           wae_pres= ifelse(is.na(wae_pres), 0, wae_pres)
+           wae_pres= ifelse(is.na(wae_pres), 0, wae_pres),
+         pike_cpue = ifelse(is.na(pike_cpue), 0, pike_cpue),
+         wae_cpue= ifelse(is.na(wae_cpue), 0, wae_cpue),
            ) %>%
   left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
 # left_join(temp_do, by = "survey_number") - remove multiple basin, need just deepest
 
-write.csv(lmb_dat_for_model, "Data/lmb_dat_for_model_mar17.csv", row.names = FALSE)
+#write.csv(lmb_dat_for_model, "Data/lmb_dat_for_model_jul6.csv", row.names = FALSE) #jul removed mini fyke and added pike/wae cpue
 
 #if you want one row per lake 
 #count_lmb_format<-tidyr::pivot_wider(data= count_lmb, 
