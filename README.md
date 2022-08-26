@@ -1,2 +1,2 @@
 # CHANGES_SDM
-Investigating species distribution models of largemouth bass, walleye, and cisco across Michigan.
+Investigating species abundance of largemouth bass across Michigan lakes. 
