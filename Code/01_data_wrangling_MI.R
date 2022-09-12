@@ -400,7 +400,7 @@ lmb_dat_for_model<-left_join(lmb_new, secchi, by=c('new_key', "survey_number")) 
 
 
 
-#### WALLEYE DATA #### 
+#### WALLEYE DATA #### note this all needs to be updated 
 #use catch data #this does not have lakes with no WAE 
 count_wae<-filter(count_data, species=='WAE')
 #link to effort table to include gear and lakes that did not catch WAE or where WAE was not present 
