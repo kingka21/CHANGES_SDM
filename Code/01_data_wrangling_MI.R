@@ -160,7 +160,7 @@ ggplot(test, aes(x = temp_c, y = depth_m, colour = temp_c)) +
 #pull out the top/surface value for each combo 
 top<-temp_do %>% 
   group_by(survey_number, survey_effort_key, basin_number) %>%
-  slice_head()  %>% #oull first value
+  slice_head()  %>% #pull first value
   dplyr::select(survey_number, survey_effort_key, basin_number, reading_datetime, depth_m, temp_c, oxygen_new_mgl)%>% 
   rename(surface_depth_m  = depth_m, surface_temp_c= temp_c, surface_do_mgl = oxygen_new_mgl)
 
@@ -281,8 +281,8 @@ count_data<-dplyr::select(MI_data_no_dups, new_key, fmu_code, species, fish_coun
     group_by(new_key, species, gear) %>%
     summarise_if(is.numeric, sum) %>% 
   ungroup() %>%
-  filter(gear != "SMFYKE") #remove small mesh (mini) catches 
-
+  filter(gear != "SMFYKE") %>%#remove small mesh (mini) catches 
+  filter(gear != "GLGNET") #remove great lakes gill nets 
 
 #### LARGE MOUTH BASS DATA #### 
 
@@ -291,25 +291,25 @@ count_lmb<-filter(count_data, species=='LMB')
 #link to effort table to include gear and lakes that did not catch LMB or where LMB was not present 
 all_effort<-left_join(effort, count_lmb, by=c('new_key' = 'new_key', 'GEAR'= 'gear')) %>%
   dplyr::select(-c(effort, species ))%>%
-  filter(GEAR != "SMFYKE") #remove small mesh (mini) catches 
+  filter(GEAR != "SMFYKE") %>% #remove small mesh (mini) catches 
+  filter(GEAR != "GLGNET") #remove great lakes gill nets 
 
 #put all column names to lowercase for consistency  
 names(all_effort)<-tolower(names(all_effort))
 
 all_effort$fish_count<-ifelse(is.na(all_effort$fish_count), 0, all_effort$fish_count)
 
-#convert date to a year and julian (year) day 
+#convert date to a year and day-of-year 
 all_effort$date<- as.Date(all_effort$sample_start_date, "%m/%d/%y") # convert "date" from chr to a Date class and specify current date format
 all_effort$year<-year(all_effort$date)
-all_effort$julian <- yday(all_effort$date)  
+all_effort$day_of_year <- yday(all_effort$date)  
 
 #make a dataframe with the date info to join back 
-sample_dates<-dplyr::select(all_effort, new_key, survey_number, date, year, julian, gear)%>%
+sample_dates<-dplyr::select(all_effort, new_key, survey_number, date, year, day_of_year, gear)%>%
   mutate(
   gear2 = case_when(       #combine gear types 
     gear == "LMFYKE" ~ 'FT_NET', 
     gear == "TRAPNET" ~ 'FT_NET', 
-    gear == "GLGNET" ~ 'GILL', 
     gear == "IGNET" ~ 'GILL', 
     gear == "SEINE" ~ 'SEINE', 
     gear == "BOOMSHK" ~ 'SHOCK')) %>%
@@ -324,7 +324,6 @@ lmb_new<-all_effort %>%
     gear2 = case_when(       #combine gear types 
     gear == "LMFYKE" ~ 'FT_NET', 
     gear == "TRAPNET" ~ 'FT_NET', 
-    gear == "GLGNET" ~ 'GILL', 
     gear == "IGNET" ~ 'GILL', 
     gear == "SEINE" ~ 'SEINE', 
     gear == "BOOMSHK" ~ 'SHOCK'))  %>%
@@ -334,62 +333,36 @@ lmb_new<-all_effort %>%
   left_join(sample_dates)
 
 #add predator information (NOP=northern pike and WAE = walleye)
+#if present in the lake (any gear), include as present 
 pike<-filter(count_data, species=='NOP') %>% 
         mutate(pike_pres = 1) %>%
-  mutate(
-    gear2 = case_when(       #combine gear types 
-      gear == "LMFYKE" ~ 'FT_NET', 
-      gear == "TRAPNET" ~ 'FT_NET', 
-      gear == "GLGNET" ~ 'GILL', 
-      gear == "IGNET" ~ 'GILL', 
-      gear == "SEINE" ~ 'SEINE', 
-      gear == "BOOMSHK" ~ 'SHOCK'))  %>%
-  group_by(new_key, gear2) %>% # group by lake and gear to combine gears 
-  summarize(effort_new = sum(effort),
-            fish_count_new = sum(fish_count), 
-            pike_pres2 = sum(pike_pres)) %>%  
-  mutate(pike_pres = 1, 
-         pike_cpue = fish_count_new/effort_new) %>% #presence only 
-  select(-c(pike_pres2, fish_count_new, effort_new)) %>% 
-  ungroup()
+  distinct(new_key, .keep_all = TRUE) %>% 
+  select(new_key, pike_pres)
+  
 
 walleye<-filter(count_data, species=='WAE') %>% 
   mutate(wae_pres = 1) %>%
-  mutate(
-    gear2 = case_when(       #combine gear types 
-      gear == "LMFYKE" ~ 'FT_NET', 
-      gear == "TRAPNET" ~ 'FT_NET', 
-      gear == "GLGNET" ~ 'GILL', 
-      gear == "IGNET" ~ 'GILL', 
-      gear == "SEINE" ~ 'SEINE', 
-      gear == "BOOMSHK" ~ 'SHOCK'))  %>%
-  group_by(new_key, gear2) %>% # group by lake and gear to combine gears 
-  summarize(effort_new = sum(effort),
-            fish_count_new = sum(fish_count), 
-            wae_pres2 = sum(wae_pres)) %>%  
-  mutate(wae_pres = 1, #presence only 
-         wae_cpue = fish_count_new/effort_new) %>% #cpue
-  select(-c(wae_pres2, fish_count_new, effort_new)) %>%
-  ungroup()
+  distinct(new_key, .keep_all = TRUE) %>% 
+  select(new_key, wae_pres)
 
 
 lake_ll<- lake_info[!duplicated(paste(lake_info$new_key)),] 
 
 #join for modeling: 
+temp_do_measures<-read.csv("Data/MI_data/temp_do_measures_MI.csv")
 lmb_dat_for_model<-left_join(lmb_new, secchi, by=c('new_key', "survey_number")) %>% 
   left_join(driver_vars, by=c('new_key')) %>%
   left_join(temp_do_measures) %>%
-  left_join(pike, by=c('new_key', 'gear2')) %>% 
-  left_join(walleye, by=c('new_key', 'gear2')) %>% 
+  left_join(pike, by=c('new_key')) %>% 
+  left_join(walleye, by=c('new_key')) %>% 
   mutate(pike_pres = ifelse(is.na(pike_pres), 0, pike_pres),
-           wae_pres= ifelse(is.na(wae_pres), 0, wae_pres),
-         pike_cpue = ifelse(is.na(pike_cpue), 0, pike_cpue),
-         wae_cpue= ifelse(is.na(wae_cpue), 0, wae_cpue),
+           wae_pres= ifelse(is.na(wae_pres), 0, wae_pres)
            ) %>%
   left_join(dplyr::select(lake_ll, new_key, LONG_DD, LAT_DD, FMU_Code))
-# left_join(temp_do, by = "survey_number") - remove multiple basin, need just deepest
 
-#write.csv(lmb_dat_for_model, "Data/lmb_dat_for_model_jul6.csv", row.names = FALSE) #jul removed mini fyke and added pike/wae cpue
+#write.csv(lmb_dat_for_model, "Data/lmb_dat_for_model_aug30.csv", row.names = FALSE) 
+#jul removed mini fyke and added pike/wae cpue
+#aug removed GL gill nets and made predators by entire lake, not gear
 
 #if you want one row per lake 
 #count_lmb_format<-tidyr::pivot_wider(data= count_lmb, 
