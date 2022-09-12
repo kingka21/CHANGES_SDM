@@ -10,8 +10,8 @@ library(raster)
 library(ggplot2)
 
 #* match fish data to lagos lakes using lake link#### 
-MIpoints<-dplyr::select(MI_data, new_key, ihdlkid, long_dd, lat_dd)
-MIpoints<- MIpoints[!duplicated(paste(MIpoints$new_key)),] #select only one row of each lake
+MIpoints<-dplyr::select(MI_data, new_key, ihdlkid, long_dd, lat_dd) %>% 
+  distinct(new_key) #select only one row of each lake
 MIpoints[is.na(MIpoints)] <- 0
 MIpoints$ihdlkid<-as.factor(MIpoints$ihdlkid)
 #MI_lagos_link<-left_join(MIpoints, lake_link, by = c('ihdlkid' = 'lake_nhdid'))
@@ -199,3 +199,101 @@ all_vars$lagoslakeid<-as.character(all_vars$lagoslakeid)
 
 ### join predictors and fish data 
 MI_data_with_pred<-left_join(MI_data_LMB, all_vars)
+
+
+#### link to historical lakes #### 
+# to see if there is more contemp Secchi data 
+#read in lat/lon
+points<-read.csv("/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/IFR_Lake_Points.csv")%>%
+  rename(new_key = NEW_KEY) %>% 
+  dplyr::select(new_key, LONG_DD, LAT_DD)
+#read in historical data
+hist_dat<-read.csv("Data/historical_lmb2.csv") %>% 
+  dplyr::select(new_key) %>% 
+  distinct(new_key) %>% 
+  left_join(points)
+#read in SNT secchi data 
+snt_secchi<-read.csv("Data/MI_data/snt_secchi.csv") %>%
+  dplyr:: select(Survey_Number, New_Key, SECCHI_FT)%>% 
+  rename(survey_number=Survey_Number, new_key=New_Key) %>% #good new_key 
+  mutate(secchi_m = SECCHI_FT/3.28) #convert to meters
+#lagos shapefile 
+lakes_shape<- readOGR(dsn = "/Users/katelynking/Desktop/LAGOS_US/LAGOS_NE_All_Lakes_4ha", layer = "LAGOS_NE_All_Lakes_4ha")
+crs(lakes_shape)
+#get the lat long data for the Michigan lakes with historical data 
+x <- hist_dat$LONG_DD
+y <- hist_dat$LAT_DD
+
+#make a dataframe of the coordinates and project
+lake.ll <- SpatialPoints(data.frame(x=x,y=y), proj4string=CRS("+proj=longlat +datum=NAD83"))   
+
+prjnew <- CRS("+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs ")
+
+MI.aea <- spTransform(lake.ll, prjnew)
+plot(MI.aea)
+
+#join with the 4ha shapefile from LAGOS_NE
+MI_LAGOS<-sp::over(MI.aea, lakes_shape) %>%
+  dplyr::select(lagoslakei, STATE, COUNTY_Nam, Lake_Area_) %>%
+  rename(lagoslakeid = lagoslakei, state = STATE, county= COUNTY_Nam, area_ha = Lake_Area_) 
+MI_LAGOS$new_key<-paste(hist_dat$new_key)  #only 6 lakes don't match 
+
+#get LAGOS Secchi data from NE - dataset is version 1.087.3. downloaded Aug 2022
+library(LAGOSNE)
+#lagosne_get(dest_folder = lagos_path()) run one time to get files on computer
+lagos <- lagosne_load()
+names(lagos)
+query_lagos_names("secchi")
+epi_nutr <- lagos$epi_nutr
+secchi <- epi_nutr %>% 
+  dplyr::select(lagoslakeid, sampledate, secchi) %>% 
+  tidyr::drop_na(secchi)
+
+# time period: >=2002, using samples collected between Jun 15 and Sep 15 (stratification period)
+# define time parameters
+first_year <- 2002
+first_day  <- '0615' #i.e., '0615' for Jun 15
+last_day   <- '0915'
+
+# convert sampledate to date format and create "monthday" column to filter by day
+secchi$sampledate   <- as.Date(secchi$sampledate, format="%m/%d/%Y")
+secchi$monthday     <- format(secchi$sampledate, format="%m%d")
+secchi$sampleyear     <- format(secchi$sampledate, format="%Y")
+
+secchi_subset <- secchi %>% 
+  filter(monthday >= first_day & monthday <= last_day) %>% 
+  filter(sampleyear >= first_year) %>% 
+  group_by(lagoslakeid) %>% 
+  summarise(mean_secchi = round(mean(secchi), 3)) %>% 
+  mutate(lagoslakeid = as.character(as.integer(lagoslakeid))
+         )
+
+hist_lakes_lagos_secchi<-left_join(MI_LAGOS, secchi_subset) %>% 
+  left_join(snt_secchi) %>% 
+  mutate(secchi_combo= ifelse(is.na(secchi_m), mean_secchi, secchi_m), #use contemp data, if na, use lagos 
+         secchi_combo = round(secchi_combo,3)) %>% 
+  left_join(hist_dat) %>% 
+  tidyr::drop_na(secchi_combo) %>% 
+  dplyr::select(new_key, secchi_combo)
+
+#add data to the historical dataset 
+historical_lmb2<-read.csv("Data/historical_lmb2.csv")
+hist_dat_with_secchi<-left_join(historical_lmb2, hist_lakes_lagos_secchi)
+
+#save the data 
+write.csv(hist_dat_with_secchi, "Data/historical_lmb2_with_secchi.csv", row.names = FALSE)
+
+#get MI basemap 
+MI_basemap<-map_data("state",  region = c("michigan"))  # select michigan 
+map<-ggplot(data = MI_basemap) + 
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black") + #this fill MI white and outline is black
+  coord_fixed(1.3) 
+
+map + 
+  geom_point(data=hist_lakes_lagos_secchi, aes(x = LONG_DD, y = LAT_DD, colour=c(secchi_combo) )) +
+  theme_bw() +  
+  theme( panel.grid.major = element_blank(),
+         panel.grid.minor = element_blank()) +
+  scale_colour_gradient(low = "darkgreen", high="blue") +
+  theme(legend.position = c(0.20, 0.25), 
+        legend.text = element_text(size=12)) 
