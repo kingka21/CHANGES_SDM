@@ -7,7 +7,7 @@ library(mapdata)
 library(dplyr)
 
 #get the lat/long points 
-lmb_points<-read.csv("Data/lmb_dat_for_model_mar14.csv") %>%
+lmb_points<-read.csv("Data/lmb_dat_for_model_aug30.csv") %>%
   dplyr::select( new_key, LAT_DD, LONG_DD, fish_count_new, dd_mean, surface_temp_mean) %>%
   distinct(new_key, .keep_all = TRUE)
 
