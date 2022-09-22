@@ -238,7 +238,8 @@ MI_LAGOS<-sp::over(MI.aea, lakes_shape) %>%
   rename(lagoslakeid = lagoslakei, state = STATE, county= COUNTY_Nam, area_ha = Lake_Area_) 
 MI_LAGOS$new_key<-paste(hist_dat$new_key)  #only 6 lakes don't match 
 
-#get LAGOS Secchi data from NE - dataset is version 1.087.3. downloaded Aug 2022
+####get LAGOS Secchi data #### 
+#from NE - dataset is version 1.087.3. downloaded Aug 2022
 library(LAGOSNE)
 #lagosne_get(dest_folder = lagos_path()) run one time to get files on computer
 lagos <- lagosne_load()
