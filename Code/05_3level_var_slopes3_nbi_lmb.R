@@ -10,10 +10,9 @@ library(ggmcmc) # package for analyzing output
 library(tidybayes)
 
 #### data ####
-#need to keep all the gears used in a lake even if that gear did not catch sp of interest 
 
 #lmb_dat_for_model has count by gear and effort by gear
-dat<-read.csv("Data/lmb_dat_for_model_jul6.csv") 
+dat<-read.csv("Data/lmb_dat_for_model_aug30.csv") 
 surface_temp<-read.csv("Data/MI_data/lake_surface_temp.csv")%>%
   group_by(IHDLKID) %>%
   slice_max(HECTARES) %>% 
@@ -47,7 +46,7 @@ dat$z_dd_year<-as.numeric(scale(log(dat$dd_year))) #good
 dat$z_surface_temp_year<-as.numeric(scale(log(dat$surf_temp_year))) #good 
 dat$z_secchi<-as.numeric(scale(log(dat$secchi_m)))
 dat$z_bottom_do<-as.numeric(scale(log(dat$bottom_do_mgl+ 0.001))) ##has 0s so added 0.001 
-dat$z_julian<-as.numeric(scale(dat$julian)) ##standardize julian date 
+dat$z_doy<-as.numeric(scale(dat$day_of_year)) ##standardize julian date 
 dat$z_ws_forest<-as.numeric(scale(asin(sqrt(dat$ws_forest_prop)))) #good
 dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat$ws_wetland_prop)))) #good
 
@@ -55,9 +54,9 @@ dat$logeffort <- log(dat$effort_new)
 
 #remove WAE because it did not converge 
 dat<-dplyr::select(dat, new_key, fish_count_new, logeffort, gear2, FMU_Code, 
-                   z_lake_area, z_max_depth, z_secchi, z_julian, 
+                   z_lake_area, z_max_depth, z_secchi, z_doy, 
                    z_bottom_do, z_surface_temp_year,
-                   z_ws_forest, z_ws_wetland, pike_pres) %>%
+                   z_ws_forest, z_ws_wetland, wae_pres, pike_pres) %>%
   na.omit()
 
 #check out response: log of count is mostly normally dist, so Poisson seems appropriate 
@@ -78,7 +77,7 @@ cat("
     p[i] <- r/(r + lambda[i])
     log(lambda[i]) <- log.lambda[i] # log-link 
     log.lambda[i] <- alpha[site[i]] + b1[gear[i]] * x1[i] + b2[gear[i]] * x2[i] + b3[gear[i]] * x3[i] + b4[gear[i]] * x4[i] + 
-                       b5[gear[i]]*x5[i] + b6[gear[i]]*x6[i] + b7[gear[i]]*x7[i] + b8[gear[i]]*x8[i] + b9[gear[i]]*x9[i] +
+                       b5[gear[i]]*x5[i] + b6[gear[i]]*x6[i] + b7[gear[i]]*x7[i] + b8[gear[i]]*x8[i] + b9[gear[i]]*x9[i] + b10[gear[i]]*x10[i] +
                       logq[gear[i]]*IND[i] + logeffort[i]
          
     } 
@@ -104,6 +103,7 @@ cat("
     b7[j] ~ dnorm(mu.b7, tau.b7)
     b8[j] ~ dnorm(mu.b8, tau.b8) 
     b9[j] ~ dnorm(mu.b9, tau.b9)
+    b10[j] ~ dnorm(mu.b10, tau.b10)
     }
     
     # Priors
@@ -127,6 +127,7 @@ cat("
     mu.b7 ~ dnorm(0,  0.0000001)
     mu.b8 ~ dnorm(0,  0.0000001)
     mu.b9 ~ dnorm(0,  0.00000000001)
+    mu.b10 ~ dnorm(0,  0.00000000001)
 
     
     sigma.b1 ~ dunif(0,100)
@@ -138,7 +139,8 @@ cat("
     sigma.b7 ~ dunif(0,100)
     sigma.b8 ~ dunif(0,100)
     sigma.b9 ~ dunif(0,100)
-    
+    sigma.b10 ~ dunif(0,100)
+
   tau.b1 <- pow(sigma.b1,-2)
   tau.b2 <- pow(sigma.b2,-2)
   tau.b3 <- pow(sigma.b3,-2)
@@ -148,7 +150,8 @@ cat("
   tau.b7 <- pow(sigma.b7,-2)
   tau.b8 <- pow(sigma.b8,-2)
   tau.b9 <- pow(sigma.b9,-2)
-    
+  tau.b10 <- pow(sigma.b10,-2)
+
     # priors for gear-specific log-catchabilities 
     for (k in 1:ngears) { 
     logq[k] ~ dnorm(0,  0.0000001)   #non-informative
@@ -165,14 +168,14 @@ sink()
 # Initial values #8 is the number of regions, 
 inits <- function (){
   list (mu.alpha = rnorm(8), b1=rnorm(4), b2=rnorm(4), b3=rnorm(4), b4=rnorm(4), 
-        b5=rnorm(4), b6=rnorm(4), b7=rnorm(4), b8=rnorm(4), b9=rnorm(4)
+        b5=rnorm(4), b6=rnorm(4), b7=rnorm(4), b8=rnorm(4), b9=rnorm(4),b10=rnorm(4)
   )
 }
 
 
 # Parameters monitored
 parameters <- c("alpha", "mu.alpha","tau.alpha", "mu.alpha2","tau.alpha2",'b1', "b2", "b3", "b4", "b5", 
-                "b6", "b7", "b8", "b9",
+                "b6", "b7", "b8", "b9", "b10",
                 'logq', 'r')
 
 
@@ -207,7 +210,7 @@ dat$IND<-ifelse(dat$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
 # Load data
 data <- list(y = dat$fish_count_new, group = group$group.mean, gear=gear, n = dim(dat)[1], J = J, ngears = ngears,
              x1=dat$z_secchi, x2=dat$z_lake_area, x3=dat$z_surface_temp_year, x4=dat$z_max_depth, x5=dat$z_bottom_do,
-             x6=dat$z_ws_forest,x7=dat$z_ws_wetland, x8=dat$z_julian, x9=dat$pike_pres,
+             x6=dat$z_ws_forest,x7=dat$z_ws_wetland, x8=dat$z_doy, x9=dat$wae_pres, x10=dat$pike_pres,
              logeffort=dat$logeffort, IND=dat$IND, nsites = nsites, site =site
 ) 
 
@@ -227,7 +230,7 @@ cat('Posterior computed in ', elapsed.time, ' minutes\n\n', sep='')
 
 #save output 
 #saveRDS(output, "Data/output/output_lmb_nbinom_surface_varslopes3.rds") 
-output<-readRDS("Data/output/output_lmb_nbinom_surface_varslopes3.rds")
+#output<-readRDS("Data/output/output_lmb_nbinom_surface_varslopes3.rds")
 
 
 # Summarize posteriors
@@ -240,7 +243,7 @@ which(output$BUGSoutput$summary[, c("n.eff")] < 500)
 jagsfit.mcmc <- as.mcmc(output)
 model1tranformed <- ggs(jagsfit.mcmc) 
 
-ggs_traceplot(model1tranformed, family = "b9")
+ggs_traceplot(model1tranformed, family = "b10")
 ggs_traceplot(model1tranformed, family = "r")
 ggs_traceplot(model1tranformed, family = "logq")
 

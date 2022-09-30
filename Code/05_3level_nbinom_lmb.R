@@ -162,7 +162,7 @@ dat$IND<-ifelse(dat$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
 # Load data
 data <- list(y = dat$fish_count_new, group = group$group.mean, gear=gear, n = dim(dat)[1], J = J, ngears = ngears,
              x1=dat$z_secchi, x2=dat$z_lake_area, x3=dat$z_surface_temp_year, x4=dat$z_max_depth, x5=dat$z_bottom_do,
-             x6=dat$z_ws_forest,x7=dat$z_ws_wetland, x8=dat$z_julian, x9=dat$wae_pres, x10=dat$pike_pres,
+             x6=dat$z_ws_forest,x7=dat$z_ws_wetland, x8=dat$z_doy, x9=dat$wae_pres, x10=dat$pike_pres,
              logeffort=dat$logeffort, IND=dat$IND, nsites = nsites, site =site
 ) 
 
