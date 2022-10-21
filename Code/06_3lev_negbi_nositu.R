@@ -136,52 +136,52 @@ nb <- 30000 #number to burn
 nc <- 3 #number of chains
 
 #### split data into training and validation sets for cross-fold validation #### 
-part1<-partition(dat$fish_count_new, p=c(train=0.8, test = 0.2), seed = 1)
-train1<-dat[part1$train,]
+part1<-partition(dat$new_key, p=c(train=0.8, test = 0.2), seed = 1,  type =c( "grouped")) 
+train1<-dat[part1$train,] 
 test1<-dat[part1$test,]
 
-part2<-partition(dat$fish_count_new, p=c(train=0.8, test = 0.2), seed = 2)
+part2<-partition(dat$new_key, p=c(train=0.8, test = 0.2), seed = 2, type =c( "grouped"))
 train2<-dat[part2$train,]
 test2<-dat[part2$test,]
 
-part3<-partition(dat$fish_count_new, p=c(train=0.8, test = 0.2), seed = 3)
+part3<-partition(dat$new_key, p=c(train=0.8, test = 0.2), seed = 3, type =c( "grouped"))
 train3<-dat[part3$train,]
 test3<-dat[part3$test,]
 
-part4<-partition(dat$fish_count_new, p=c(train=0.8, test = 0.2), seed = 4)
+part4<-partition(dat$new_key, p=c(train=0.8, test = 0.2), seed = 4, type =c( "grouped"))
 train4<-dat[part4$train,]
 test4<-dat[part4$test,]
 
-part5<-partition(dat$fish_count_new, p=c(train=0.8, test = 0.2), seed = 5)
+part5<-partition(dat$new_key, p=c(train=0.8, test = 0.2), seed = 5, type =c( "grouped"))
 train5<-dat[part5$train,]
 test5<-dat[part5$test,]
 
 #### set up data #### 
 
 #set the number of sites and create site index 
-nsites<-length(unique(train4$new_key))
-site <- as.numeric(as.factor(train4$new_key))
+nsites<-length(unique(train5$new_key))
+site <- as.numeric(as.factor(train5$new_key))
 
 # Set the number of FMUs 
-J <- length(unique(train4$FMU_Code))
+J <- length(unique(train5$FMU_Code))
 
 # Create group index, must go from 1,..J
-train4$FMU_Code <- droplevels(as.factor(train4$FMU_Code))
-train4$group <- as.numeric(as.factor(train4$FMU_Code))
-group <- doBy::summaryBy(group ~ new_key, data=train4, FUN=mean) #need region to be indexed by site
+train5$FMU_Code <- droplevels(as.factor(train5$FMU_Code))
+train5$group <- as.numeric(as.factor(train5$FMU_Code))
+group <- doBy::summaryBy(group ~ new_key, data=train5, FUN=mean) #need region to be indexed by site
 
 #set number of different sampling gears used and set a gear index 
-ngears<-length(unique(train4$gear2))
-gear <- as.numeric(as.factor(train4$gear2))
+ngears<-length(unique(train5$gear2))
+gear <- as.numeric(as.factor(train5$gear2))
 
 #create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
-train4$IND<-ifelse(train4$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
+train5$IND<-ifelse(train5$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
 
 # Load data
-data <- list(y = train4$fish_count_new, group = group$group.mean, gear=gear, n = dim(train4)[1], J = J, ngears = ngears,
-             x1=train4$z_secchi, x2=train4$z_lake_area, x3=train4$z_surface_temp_year, x4=train4$z_max_depth,
-             x5=train4$z_ws_forest,x6=train4$z_ws_wetland, x7=train4$z_doy,
-             logeffort=train4$logeffort, IND=train4$IND, nsites = nsites, site =site
+data <- list(y = train5$fish_count_new, group = group$group.mean, gear=gear, n = dim(train5)[1], J = J, ngears = ngears,
+             x1=train5$z_secchi, x2=train5$z_lake_area, x3=train5$z_surface_temp_year, x4=train5$z_max_depth,
+             x5=train5$z_ws_forest,x6=train5$z_ws_wetland, x7=train5$z_doy,
+             logeffort=train5$logeffort, IND=train5$IND, nsites = nsites, site =site
 ) 
 ### run the model using JAGS and R ####
 # Set timer 
@@ -198,8 +198,8 @@ elapsed.time = round(difftime(end.time, start.time, units='mins'), dig = 2)
 cat('Posterior computed in ', elapsed.time, ' minutes\n\n', sep='') 
 
 #save output 
-saveRDS(output, "Data/output/output_model1_secchi_lmb_fold4.rds") 
-#output<-readRDS("Data/output/model_output_lmb_nbinom_surface.rds")
+#saveRDS(output, "Data/output/output_model1_secchi_fold5_lakes.rds") 
+output<-readRDS("Data/output/output_model1_secchi_fold1_lakes.rds")
 
 #### Summarize posteriors ####
 print(output, dig = 3)
@@ -255,7 +255,8 @@ model_1_covariates<-model1tranformed %>%
   scale_fill_manual(values= c("gray80", "skyblue")) +
   ggdist::stat_halfeye(.width = c(.05, .95)) + 
   theme_bw() + 
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  ylab("predictor")
 
 ggsave(plot=model_1_covariates, 
        device = "png", 
@@ -266,7 +267,7 @@ ggsave(plot=model_1_covariates,
 # Simulating data from the posterior predictive distribution using the observed predictors is useful for checking the fit of the model.
 #obtain our samples from the posterior
 #this has a posterior dist (21000) for coef for every param; e.g. 255 lakes, 7 betas, 4 logqs, 8 mu.alphas, etc. 
-coefs <- output$BUGSoutput$sims.matrix[,1:278] 
+coefs <- output$BUGSoutput$sims.matrix[,1:228] 
 
 ### 
 # Number of desired MCMC samples used for prediction (use a subset of all samples)
@@ -278,7 +279,7 @@ ID = seq( 1 , chainLength , floor(chainLength/nsim) )
 
 #need to add management unit index and gear index
 #logq1 is FT which is neutral, 2 is gill, 3 is seine, 4 is shock 
-test4<-test4 %>% 
+test1<-test1 %>% 
   mutate(group = case_when( FMU_Code == "MI-MCM" ~ 1, 
                             FMU_Code == "MI-MER" ~ 2, 
                             FMU_Code == "MI-MES" ~ 3, 
@@ -295,18 +296,18 @@ test4<-test4 %>%
   )
 
 #create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
-test4$IND<-ifelse(test4$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
+test1$IND<-ifelse(test1$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
 
 # Container for predicted values
 #logq1 is FT which is neutral, 2 is gill, 3 is seine, 4 is shock 
-predictions_sim<- array(NA, c(nsim,length(test4[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
+predictions_sim<- array(NA, c(nsim,length(test1[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
 dim(predictions_sim)
 
 for(i in 1:nsim ){  #loop over sims 
-  for(t in 1:length(test4[[1]])){ #loop over covariate data (obs)
-    predictions_sim[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',test4[['group']][t],']')] + coefs[ID[i],'b[1]']*test4[['z_secchi']][t]  + coefs[ID[i],'b[2]']*test4[['z_lake_area']][t]  + coefs[ID[i],'b[3]']*test4[['z_surface_temp_year']][t]  + 
-                                  coefs[ID[i],'b[4]']*test4[['z_max_depth']][t]  + coefs[ID[i],'b[5]']*test4[['z_ws_forest']][t] + coefs[ID[i],'b[6]' ]*test4[['z_ws_wetland']][t] + coefs[ID[i],'b[7]' ]*test4[['z_doy']][t] + 
-                                  coefs[ID[i], paste0('logq[',test4[['gear']][t],']')]*test4[['IND']][t] + test4[['logeffort']][t]) # exp the predictions because we used a log-link in the Poisson
+  for(t in 1:length(test1[[1]])){ #loop over covariate data (obs)
+    predictions_sim[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',test1[['group']][t],']')] + coefs[ID[i],'b[1]']*test1[['z_secchi']][t]  + coefs[ID[i],'b[2]']*test1[['z_lake_area']][t]  + coefs[ID[i],'b[3]']*test1[['z_surface_temp_year']][t]  + 
+                                  coefs[ID[i],'b[4]']*test1[['z_max_depth']][t]  + coefs[ID[i],'b[5]']*test1[['z_ws_forest']][t] + coefs[ID[i],'b[6]' ]*test1[['z_ws_wetland']][t] + coefs[ID[i],'b[7]' ]*test1[['z_doy']][t] + 
+                                  coefs[ID[i], paste0('logq[',test1[['gear']][t],']')]*test1[['IND']][t] + test1[['logeffort']][t]) # exp the predictions because we used a log-link in the Poisson
     
   }
 }
@@ -314,8 +315,8 @@ for(i in 1:nsim ){  #loop over sims
 #container for p values 
 #parametrization is by the dispersion parameter, where prob = size/(size+mu).
 #p is the success parameter and r is the dispersion parameter.
-p <- array(NA, c(nsim,length(test4[[1]])) )
-exp_catch <- array(NA, c(nsim,length(test4[[1]])) )
+p <- array(NA, c(nsim,length(test1[[1]])) )
+exp_catch <- array(NA, c(nsim,length(test1[[1]])) )
 
 for(i in 1:nrow(predictions_sim)){ # loop over rows (sims)
   for(t in 1:ncol(predictions_sim) ){ #loop over columns(obs)
@@ -335,13 +336,13 @@ lowerCI.Group <- apply(exp_catch, 2, quantile, probs=c(0.025) )
 med_data=data.frame(col.med, col.means, upperCI.Group, lowerCI.Group) 
 med_data$row <- as.numeric(row.names(med_data))
 
-test4$site <- as.numeric(as.factor(test4$new_key))
-obs_catch<-dplyr::select(test4, site, new_key, gear2, fish_count_new) %>% 
+test1$site <- as.numeric(as.factor(test1$new_key))
+obs_catch<-dplyr::select(test1, site, new_key, gear2, fish_count_new) %>% 
   mutate(row = row_number())
 plot_data<-left_join(med_data, obs_catch) %>%
   mutate(gear = case_when(       #rename gear types for publication
     gear2 == "FT_NET" ~ 'fyke net', 
-    gear2 == "GILL" ~ 'gill net', 
+    gear2 == "GILL" ~ 'gillnet', 
     gear2 == "SEINE" ~ 'seine', 
     gear2 == "SHOCK" ~ 'shock')) 
 
@@ -350,9 +351,9 @@ plot( med_data$col.means, obs_catch$fish_count_new)
 
 #which can be compared to the observed catch for that combination of lake and gear. 
 #One suggestion for visualizing the model fit is to generate a separate graph for each gear, 
-#plot the median predicted catches (+- the 95% ci) of different lakes on the x-axis versus the observed catches of lakes on the y-axis.
+#plot the mean predicted catches (+- the 95% ci) of different lakes on the x-axis versus the observed catches of lakes on the y-axis.
 pred_plot<-ggplot()+
-  geom_pointrange(data=plot_data, aes(x=col.med, y=fish_count_new, xmax=upperCI.Group, xmin=lowerCI.Group))+ 
+  geom_pointrange(data=plot_data, aes(x=col.means, y=fish_count_new, xmax=upperCI.Group, xmin=lowerCI.Group))+ 
   xlab('predicted catch')+
   ylab('observed catch')+
   theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
@@ -361,11 +362,11 @@ pred_plot<-ggplot()+
 pred_plot+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
 
 #plot log scale 
-pred_plot_log<-ggplot(data=plot_data, aes(x=log(col.med+1), y=log(fish_count_new + 1), xmax=log(upperCI.Group +1), xmin=log(lowerCI.Group +1) ) )+
+pred_plot_log<-ggplot(data=plot_data, aes(x=log(col.means +1), y=log(fish_count_new +1), xmax=log(upperCI.Group +1), xmin=log(lowerCI.Group +1) ) )+
   geom_pointrange( color="grey" )+ 
   geom_point(color="black")+
   xlab('predicted catch (log)')+
-  ylab('observed catch (log')+
+  ylab('observed catch (log)')+
   theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
   geom_abline(intercept = 0, slope = 1)
 
@@ -379,14 +380,14 @@ ggsave(plot=model_1_pred_obs,
 library(bayesplot)
 #yrep<-as.matrix(output$BUGSoutput$sims.list$ysim ) #from the predictions within JAGS
 yrep<-exp_catch
-y<-test4$fish_count_new
+y<-test1$fish_count_new
 
 color_scheme_set("brightblue")
 ppc_dens_overlay(y, yrep[1:50, ])
 ppc_dens_overlay(y, yrep[1:50, ]) + xlim(0, 50)
 #ppc_hist(y, yrep[1:5, ])
 #group 
-model_1_dens<-ppc_dens_overlay_grouped(y, yrep[1:50, ], group = test1$gear2) + xlim(0, 20)
+model_1_dens<-ppc_dens_overlay_grouped(y, yrep[1:50, ], group = test5$gear2) + xlim(0, 20)
 
 ggsave(plot=model_1_dens, 
        device = "png", 
@@ -481,17 +482,44 @@ hist_dat<-hist_dat %>%
 #create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
 hist_dat$IND<-ifelse(hist_dat$gear == "FT_net", 0, 1) #FT_NET is the reference gear
 
+#### *multiple test sets for each fold ####
+#output<-readRDS("Data/output/output_model1_secchi_lmb_fold1.rds")
+#coefs <- output$BUGSoutput$sims.matrix[,1:277] 
+
+# Number of desired MCMC samples used for prediction (use a subset of all samples)
+nsim <- 3000
+# Chain length from analysis
+chainLength <- output$BUGSoutput$n.sims
+# Select thinned steps in chain for posterior predictions to ensure we take values from length of posterior
+ID = seq( 1 , chainLength , floor(chainLength/nsim) )
+
+#pull out about 50 lakes to match contemp test dataset 
+hist1<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 1, type =c("grouped"))
+hist_test1<-hist_dat[hist1$test,]
+hist2<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 2, type =c("grouped"))
+hist_test2<-hist_dat[hist2$test,]
+hist3<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 3, type =c("grouped"))
+hist_test3<-hist_dat[hist3$test,]
+hist4<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 4, type =c("grouped"))
+hist_test4<-hist_dat[hist4$test,]
+hist5<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 5, type =c("grouped"))
+hist_test5<-hist_dat[hist5$test,]
+
+hist_test<-hist_test5# just change this input each time 
+n_distinct(hist_test$new_key)
+
+#* start prediction #### 
 # Container for predicted values
 #logq1 is FT which is neutral, 2 is gill, 3 is seine, 4 is shock 
-predict_hist<- array(NA, c(nsim,length(hist_dat[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
+predict_hist<- array(NA, c(nsim,length(hist_test[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
 dim(predict_hist)
 
 #use regional mu.alphas instead of site specific, since dif sites 
 for(i in 1:nsim ){  #loop over sims 
-  for(t in 1:length(hist_dat[[1]])){ #loop over covariate data (obs)
-    predict_hist[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',hist_dat[['group']][t],']')] + coefs[ID[i],'b[1]']*hist_dat[['z_secchi']][t]  + coefs[ID[i],'b[2]']*hist_dat[['z_lake_area']][t]  + coefs[ID[i],'b[3]']*hist_dat[['z_surface_temp_year']][t]  + 
-                               coefs[ID[i],'b[4]']*hist_dat[['z_max_depth']][t]  + coefs[ID[i],'b[5]' ]*hist_dat[['z_ws_forest']][t] + coefs[ID[i],'b[6]']*hist_dat[['z_ws_wetland']][t] + coefs[ID[i],'b[7]']*hist_dat[['z_julian']][t] +
-                               coefs[ID[i], paste0('logq[',hist_dat[['gear_index']][t],']')]*hist_dat[['IND']][t] + hist_dat[['logeffort']][t]) # exp the predictions because we used a log-link in the Poisson
+  for(t in 1:length(hist_test[[1]])){ #loop over covariate data (obs)
+    predict_hist[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',hist_test[['group']][t],']')] + coefs[ID[i],'b[1]']*hist_test[['z_secchi']][t]  + coefs[ID[i],'b[2]']*hist_test[['z_lake_area']][t]  + coefs[ID[i],'b[3]']*hist_test[['z_surface_temp_year']][t]  + 
+                               coefs[ID[i],'b[4]']*hist_test[['z_max_depth']][t]  + coefs[ID[i],'b[5]' ]*hist_test[['z_ws_forest']][t] + coefs[ID[i],'b[6]']*hist_test[['z_ws_wetland']][t] + coefs[ID[i],'b[7]']*hist_test[['z_julian']][t] +
+                               coefs[ID[i], paste0('logq[',hist_test[['gear_index']][t],']')]*hist_test[['IND']][t] + hist_test[['logeffort']][t]) # exp the predictions because we used a log-link in the Poisson
     
   }
 }
@@ -500,8 +528,8 @@ for(i in 1:nsim ){  #loop over sims
 #container for p values 
 #parametrization is by the dispersion parameter, where prob = size/(size+mu).
 #p is the success parameter and r is the dispersion parameter.
-p_hist <- array(NA, c(nsim,length(hist_dat[[1]])) )
-exp_catch_hist <- array(NA, c(nsim,length(hist_dat[[1]])) )
+p_hist <- array(NA, c(nsim,length(hist_test[[1]])) )
+exp_catch_hist <- array(NA, c(nsim,length(hist_test[[1]])) )
 
 for(i in 1:nrow(predict_hist)){ # loop over rows (sims)
   for(t in 1:ncol(predict_hist) ){ #loop over columns(obs)
@@ -521,8 +549,8 @@ lowerPI <- apply(exp_catch_hist, 2, quantile, probs=c(0.025) )
 med_data=data.frame(hist.med, hist.means, upperPI, lowerPI) 
 med_data$row <- as.numeric(row.names(med_data))
 
-hist_dat$site <- as.numeric(as.factor(hist_dat$new_key))
-hist_catch<-dplyr::select(hist_dat, site, gear, largemouthbass_sum) %>% 
+hist_test$site <- as.numeric(as.factor(hist_test$new_key))
+hist_catch<-dplyr::select(hist_test, site, gear, largemouthbass_sum) %>% 
   mutate(row = row_number())
 plot_data<-left_join(med_data, hist_catch) 
 
@@ -547,8 +575,8 @@ pred_plot+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary
 pred_plot_log<-ggplot(data=plot_data_no_fyke, aes(x=log(hist.means+1), y=log(largemouthbass_sum + 1), xmax=log(upperPI +1), xmin=log(lowerPI +1) ) )+
   geom_pointrange( color="grey" )+ 
   geom_point(color="black")+
-  xlab('log predicted catch')+
-  ylab('log historical catch')+
+  xlab('predicted catch (log)')+
+  ylab('historical catch (log)')+
   theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
   geom_abline(intercept = 0, slope = 1)
 
