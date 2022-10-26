@@ -199,7 +199,7 @@ cat('Posterior computed in ', elapsed.time, ' minutes\n\n', sep='')
 
 #save output 
 #saveRDS(output, "Data/output/output_model1_secchi_fold5_lakes.rds") 
-output<-readRDS("Data/output/output_model1_secchi_fold1_lakes.rds")
+output<-readRDS("Data/output/output_model1_secchi_fold3_lakes.rds")
 
 #### Summarize posteriors ####
 print(output, dig = 3)
