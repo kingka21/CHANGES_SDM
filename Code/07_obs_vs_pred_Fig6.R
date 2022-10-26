@@ -74,7 +74,7 @@ part5<-partition(dat$new_key, p=c(train=0.8, test = 0.2), seed = 5, type =c( "gr
 train5<-dat[part5$train,]
 test5<-dat[part5$test,]
 
-#### MODEL FIT contemporary #### 
+#### contemporary fit #### 
 # Simulating data from the posterior predictive distribution using the observed predictors 
 #obtain our samples from the posterior
 coefs <- output$BUGSoutput$sims.matrix[,1:256] 
@@ -200,18 +200,9 @@ hist_dat<-hist_dat %>%
 #create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
 hist_dat$IND<-ifelse(hist_dat$gear == "FT_net", 0, 1) #FT_NET is the reference gear
 
-#### *multiple test sets for each fold ####
 #pull out about 50 lakes to match contemporary test dataset 
 hist1<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 1, type =c("grouped"))
 hist_test1<-hist_dat[hist1$test,]
-hist2<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 2, type =c("grouped"))
-hist_test2<-hist_dat[hist2$test,]
-hist3<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 3, type =c("grouped"))
-hist_test3<-hist_dat[hist3$test,]
-hist4<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 4, type =c("grouped"))
-hist_test4<-hist_dat[hist4$test,]
-hist5<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 5, type =c("grouped"))
-hist_test5<-hist_dat[hist5$test,]
 
 hist_test<-hist_test1# just change this input each time 
 n_distinct(hist_test$new_key)
@@ -283,7 +274,7 @@ pred_plot_log<-ggplot(data=both_data, aes(x=log(col.means+1), y=log(fish_count_n
   ylab('observed catch (log)')+
   theme_bw()+
   theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
-  theme(legend.position = "bottom") +
+  theme(legend.position = "bottom", legend.text=element_text(size=14)) +
   geom_abline(intercept = 0, slope = 1)
 
 
