@@ -342,7 +342,7 @@ abund_histogram<-rbind(cont_histogram, hist_histogram)
 
 abund_histogram_fig7<-ggplot(abund_histogram, aes(x=log(mean), fill=time)) +
   geom_histogram(alpha=0.25, position="identity", aes(y = ..density..), color="black", bins = 10) +
-  labs(x="relative density (log)", y = "density") + 
+  labs(x="relative density (log)", y = "frequency") + 
   scale_fill_manual(values=c("lightblue", "lightsalmon")) +
   guides(fill=guide_legend(title='')) + 
   theme(legend.position = c(0.9,0.8), legend.text=element_text(size=14))
@@ -353,7 +353,7 @@ ggsave(plot=abund_histogram_fig7,
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white 
 
-### lat plot#### 
+### latitude plot#### 
 cont_dat<-cont_just_lake %>% 
   distinct(new_key, .keep_all = TRUE) %>% 
   left_join(cont_abund_map_dat) %>% 
@@ -369,10 +369,13 @@ plot_dat<-rbind(cont_dat, hist_dat)
 ggplot(data=plot_dat, aes(x=z_surface_temp_year, y=log(sum_dens), color=type)) + 
   geom_point()
 
-lat_regression<-ggplot(data=plot_dat, aes(x=LAT_DD, y=log(sum_dens), color=type)) + 
-  geom_point() + 
-  geom_smooth(method='lm') + 
+gam_plot<-ggplot(data=plot_dat, aes(x=LAT_DD, y=log(sum_dens), color=type)) + 
+  geom_point()  +
   scale_color_manual(values=c("darkblue", "lightsalmon")) + 
-  xlab("latitude") + ylab("density (log)")
+  geom_smooth(method='gam') +
+  guides(color=guide_legend(title='')) + 
+  xlab("latitude") + ylab("density (log)") + 
+  theme(legend.position = c(0.9,0.8), legend.text=element_text(size=14), 
+        axis.title = element_text(size=16), axis.text = element_text(size=14))
 
-ggsave("figures/regression_plot.png", lat_regression)
+ggsave("figures/gam_plot.png", gam_plot)
