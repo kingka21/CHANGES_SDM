@@ -243,7 +243,7 @@ cat('Posterior computed in ', elapsed.time, ' minutes\n\n', sep='')
 
 #save output 
 #saveRDS(output, "Data/output/output_model2_secchi_fold5_lakes.rds") 
-output<-readRDS("Data/output/output_model2_secchi_fold3_lakes.rds")
+output<-readRDS("Data/output/output_model2_secchi_fold2_lakes.rds")
 
 
 #* Summarize posteriors ####
@@ -268,223 +268,6 @@ ggs_traceplot(model1tranformed, family = "r")
 ggs_traceplot(model1tranformed, family = "logq")
 ggs_traceplot(model1tranformed, family = "mu.b")
 
-#### effect plots #### 
-library(dotwhisker)
-
-#betas
-#1 is FT, 2 is gill, 3 is seine, 4 is shock 
-#x1=z_secchi, x2=z_lake_area, x3=z_surface_temp_year, x4=z_max_depth,
-#x5=z_ws_forest,x6=z_ws_wetland, x7=z_doy,
-EstsSecchi <- matrix(NA, nrow=4,ncol=3)
-for(i in 1:4){ #gears
-  EstsSecchi[i,1] <- mean(output$BUGSoutput$sims.list$b1[,i])
-  EstsSecchi[i,2:3] <- quantile(output$BUGSoutput$sims.list$b1[,i],c(0.05,0.95))
-}
-EstsSecchi<-as.data.frame(EstsSecchi)
-colnames(EstsSecchi)<- c("estimate", "conf.low", "conf.high")
-EstsSecchi$gear<-c("Fyke", "Gill", "Seine", "Shock")
-EstsSecchi$term<-'Secchi'
-
-Estsarea <- matrix(NA, nrow=4,ncol=3)
-for(i in 1:4){ #gears
-  Estsarea[i,1] <- mean(output$BUGSoutput$sims.list$b2[,i])
-  Estsarea[i,2:3] <- quantile(output$BUGSoutput$sims.list$b2[,i],c(0.05,0.95))
-}
-Estsarea<-as.data.frame(Estsarea)
-colnames(Estsarea)<- c("estimate", "conf.low", "conf.high")
-Estsarea$gear<-c("Fyke", "Gill", "Seine", "Shock")
-Estsarea$term<-'lake_area'
-
-Eststemp <- matrix(NA, nrow=4,ncol=3)
-for(i in 1:4){ #gears
-  Eststemp[i,1] <- mean(output$BUGSoutput$sims.list$b3[,i])
-  Eststemp[i,2:3] <- quantile(output$BUGSoutput$sims.list$b3[,i],c(0.05,0.95))
-}
-Eststemp<-as.data.frame(Eststemp)
-colnames(Eststemp)<- c("estimate", "conf.low", "conf.high")
-Eststemp$gear<-c("Fyke", "Gill", "Seine", "Shock")
-Eststemp$term<-"surface_temp"
-
-Estsdepth <- matrix(NA, nrow=4,ncol=3)
-for(i in 1:4){ #gears
-  Estsdepth[i,1] <- mean(output$BUGSoutput$sims.list$b4[,i])
-  Estsdepth[i,2:3] <- quantile(output$BUGSoutput$sims.list$b4[,i],c(0.05,0.95))
-}
-Estsdepth<-as.data.frame(Estsdepth)
-colnames(Estsdepth)<- c("estimate", "conf.low", "conf.high")
-Estsdepth$gear<-c("Fyke", "Gill", "Seine", "Shock")
-Estsdepth$term<-"max_depth"
-
-EstsFor <- matrix(NA, nrow=4,ncol=3)
-for(i in 1:4){ #gears
-  EstsFor[i,1] <- mean(output$BUGSoutput$sims.list$b5[,i])
-  EstsFor[i,2:3] <- quantile(output$BUGSoutput$sims.list$b5[,i],c(0.05,0.95))
-}
-EstsFor<-as.data.frame(EstsFor)
-colnames(EstsFor)<- c("estimate", "conf.low", "conf.high")
-EstsFor$gear<-c("Fyke", "Gill", "Seine", "Shock")
-EstsFor$term<-'ws_forest'
-
-Estswet <- matrix(NA, nrow=4,ncol=3)
-for(i in 1:4){ #gears
-  Estswet[i,1] <- mean(output$BUGSoutput$sims.list$b6[,i])
-  Estswet[i,2:3] <- quantile(output$BUGSoutput$sims.list$b6[,i],c(0.05,0.95))
-}
-Estswet<-as.data.frame(Estswet)
-colnames(Estswet)<- c("estimate", "conf.low", "conf.high")
-Estswet$gear<-c("Fyke", "Gill", "Seine", "Shock")
-Estswet$term<-'ws_wetland'
-
-EstsDOY <- matrix(NA, nrow=4,ncol=3)
-for(i in 1:4){ #gears
-  EstsDOY[i,1] <- mean(output$BUGSoutput$sims.list$b7[,i])
-  EstsDOY[i,2:3] <- quantile(output$BUGSoutput$sims.list$b7[,i],c(0.05,0.95))
-}
-EstsDOY<-as.data.frame(EstsDOY)
-colnames(EstsDOY)<- c("estimate", "conf.low", "conf.high")
-EstsDOY$gear<-c("Fyke", "Gill", "Seine", "Shock")
-EstsDOY$term<-'day-of-year'
-
-
-
-all_est<- gtools::smartbind(EstsSecchi, Estsarea, Eststemp, Estsdepth, EstsFor, Estswet, EstsDOY)
-#add colors for sig different than 0
-all_est$color <- as.numeric(all_est[,2] * all_est[,3] > 0 )
-all_est$Parameter <-c("b1[1]", "b1[2]", "b1[3]", "b1[4]",
-                      "b2[1]", "b2[2]", "b2[3]", "b2[4]",
-                      "b3[1]", "b3[2]", "b3[3]", "b3[4]",
-                      "b4[1]", "b4[2]", "b4[3]", "b4[4]",
-                      "b5[1]", "b5[2]", "b5[3]", "b5[4]",
-                      "b6[1]", "b6[2]", "b6[3]", "b6[4]", 
-                      "b7[1]", "b7[2]", "b7[3]", "b7[4]")
-
-#split into the gears for graphing 
-fyke<-filter(all_est, gear=="Fyke")
-gill<-filter(all_est, gear=="Gill")
-seine<-filter(all_est, gear=="Seine")
-shock<-filter(all_est, gear=="Shock")
-
-
-
-# plot using the dotwhisker package 
-fyke_plot<-dwplot(fyke, style = "dotwhisker", 
-                  dot_args = list(aes(colour = factor(color))),
-                  whisker_args = list(aes(colour = factor(color))), 
-                  vline = geom_vline(xintercept = 0, colour = "grey60", linetype = 2)) + # plot line at zero _behind_ coefs
-  scale_colour_manual(values= c("black", "blue")) +    
-  theme_bw() + 
-  xlab("Estimated effect") + ylab("Covariate") +
-  ggtitle("fyke") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none")
-fyke_plot
-
-gill_plot<-dwplot(gill, style = "dotwhisker", 
-                  dot_args = list(aes(colour = factor(color))),
-                  whisker_args = list(aes(colour = factor(color))), 
-                  vline = geom_vline(xintercept = 0, colour = "grey60", linetype = 2)) + # plot line at zero _behind_ coefs
-  scale_colour_manual(values= c("black", "blue")) +    
-  theme_bw() + 
-  xlab("Estimated effect") + ylab("Covariate") +
-  ggtitle("gill") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none")
-gill_plot
-
-seine_plot<-dwplot(seine, style = "dotwhisker", 
-                   dot_args = list(aes(colour = factor(color))),
-                   whisker_args = list(aes(colour = factor(color))), 
-                   vline = geom_vline(xintercept = 0, colour = "grey60", linetype = 2)) + # plot line at zero _behind_ coefs
-  scale_colour_manual(values= c("black", "blue")) +    
-  theme_bw() + 
-  xlab("Estimated effect") + ylab("Covariate") +
-  ggtitle("seine") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none")
-seine_plot
-
-shock_plot<-dwplot(shock, style = "dotwhisker", 
-                   dot_args = list(aes(colour = factor(color))),
-                   whisker_args = list(aes(colour = factor(color))), 
-                   vline = geom_vline(xintercept = 0, colour = "grey60", linetype = 2)) + # plot line at zero _behind_ coefs
-  scale_colour_manual(values= c("black", "blue")) +    
-  theme_bw() + 
-  xlab("Estimated effect") + ylab("Covariate") +
-  ggtitle("shock") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none")
-shock_plot
-
-#####PLOT WITH DISTRIBUTIONS ####
-#1 is FT, 2 is gill, 3 is seine, 4 is shock 
-fyke_dist<-model1tranformed %>%
-  filter(grepl("b.*[1]",Parameter))%>% #use .* as a wild card to capture all 10 params
-  left_join(fyke) %>% #get parameter names and colors 
-  na.omit(term) %>%
-  ggplot(aes(x = value, y = term, fill= factor(color))) +
-  geom_vline(xintercept = 0, colour = "grey60", linetype = 2) + 
-  scale_fill_manual(values= c("gray80", "skyblue")) +
-  ggdist::stat_halfeye(.width = c(.05, .95)) + 
-  theme_bw() +
-  ggtitle("fyke net") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none") +
-  ylab("predictor")
-
-gill_dist<-model1tranformed %>%
-  filter(grepl("b.*[2]",Parameter))%>% #use .* as a wild card to capture all 10 params
-  left_join(gill) %>% #get parameter names and colors 
-  na.omit(term) %>%
-  ggplot(aes(x = value, y = term, fill= factor(color))) +
-  geom_vline(xintercept = 0, colour = "grey60", linetype = 2) + 
-  scale_fill_manual(values= c("gray80", "skyblue")) +
-  ggdist::stat_halfeye(.width = c(.05, .95)) + 
-  theme_bw() +
-  ggtitle("gill net") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none") +
-  ylab("predictor")
-
-
-seine_dist<-model1tranformed %>%
-  filter(grepl("b.*[3]",Parameter))%>% #use .* as a wild card to capture all 10 params
-  left_join(seine) %>% #get parameter names and colors 
-  na.omit(term) %>%
-  ggplot(aes(x = value, y = term, fill= factor(color))) +
-  geom_vline(xintercept = 0, colour = "grey60", linetype = 2) + 
-  scale_fill_manual(values= c("gray80", "skyblue")) +
-  ggdist::stat_halfeye(.width = c(.10, .90)) + 
-  theme_bw() +
-  ggtitle("seine") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none") +
-  ylab("predictor")
-
-
-shock_dist<-model1tranformed %>%
-  filter(grepl("b.*[4]",Parameter))%>% #use .* as a wild card to capture all 10 params
-  left_join(shock) %>% #get parameter names and colors 
-  na.omit(term) %>%
-  ggplot(aes(x = value, y = term, fill= factor(color))) +
-  geom_vline(xintercept = 0, colour = "grey60", linetype = 2) + 
-  scale_fill_manual(values= c("gray80", "skyblue")) +
-  ggdist::stat_halfeye(.width = c(.10, .90)) + 
-  theme_bw() +
-  ggtitle("shock") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none") +
-  ylab("predictor")
-
-#* save as 4-panel plot 
-model2_covariates<-cowplot::plot_grid(fyke_dist, gill_dist, seine_dist, shock_dist, labels=c("a", "b", "c", "d"), ncol=2)
-
-ggsave(plot=model2_covariates, 
-       device = "png", 
-       filename = "figures/model2_covariates.png", 
-       dpi = 600, height = 8, width = 12, units = "in",
-       bg="#ffffff") #sets background to white 
-
-
 #### MODEL FIT #### 
 # Simulating data from the posterior predictive distribution using the observed predictors is useful for checking the fit of the model.
 #obtain our samples from the posterior
@@ -500,7 +283,7 @@ chainLength <- output$BUGSoutput$n.sims
 ID = seq( 1 , chainLength , floor(chainLength/nsim) )
 
 #* predict to test dataset ####
-cont_test<-test3# just change this input each time 
+cont_test<-test2# just change this input each time 
 n_distinct(cont_test$new_key)
 
 #need to add management unit index and gear index
@@ -519,10 +302,8 @@ cont_test<-cont_test %>%
                             gear2 == "GILL" ~ 2,
                             gear2 == "SEINE" ~ 3, 
                             gear2 == "SHOCK" ~ 4)
-  )
-
-#create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
-cont_test$IND<-ifelse(cont_test$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
+  ) %>% 
+  mutate(IND = ifelse(gear2 == "FT_NET", 0, 1)) ##create an indicator variable “IND”, with value 0 for every sample using the reference gear (fyke) and value 1 otherwise
 
 # Container for predicted values using the test dataset 5
 #logq1 is FT which is neutral, 2 is gill, 3 is seine, 4 is shock 
@@ -557,6 +338,7 @@ for(i in 1:nrow(predictions_sim)){ # loop over rows (sims)
 #From this distribution, you can extract the median and the 2.5% and 97.5% percentiles (95% credible interval),
 col.med <- apply(exp_catch, 2, median )
 col.means <- apply(exp_catch, 2, mean )
+
 # 95% CIs for fitted values
 upperCI.Group <- apply(exp_catch, 2, quantile, probs=c(0.975) )
 lowerCI.Group <- apply(exp_catch, 2, quantile, probs=c(0.025) )
@@ -575,10 +357,10 @@ plot_data<-left_join(med_data, obs_catch) %>%
     gear2 == "SEINE" ~ 'seine', 
     gear2 == "SHOCK" ~ 'shock'))
 
-plot( med_data$col.med , obs_catch$fish_count_new)
-plot( med_data$col.means, obs_catch$fish_count_new)
+#plot( med_data$col.med , obs_catch$fish_count_new)
+#plot( med_data$col.means, obs_catch$fish_count_new)
 
-#which can be compared to the observed catch for that combination of lake and gear. 
+#*compare predicted to the observed catch for that combination of lake and gear ####
 #One suggestion for visualizing the model fit is to generate a separate graph for each gear, 
 #plot the median predicted catches (+- the 95% ci) of different lakes on the x-axis versus the observed catches of lakes on the y-axis.
 pred_plot<-ggplot()+
@@ -608,6 +390,37 @@ ggsave(plot=model2_pred_obs,
        filename = "figures/model2_pred_obs.png", 
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white 
+
+#### deviance #### 
+#calculate the log-likelihood (L) for each fold (each observation gets a prob and then sum)
+r<-mean(output$BUGSoutput$sims.list$r)
+
+likelihood <- data.frame(matrix(ncol=4, nrow =c(length(plot_data[[1]])) ) )
+colnames(likelihood) <- c("likelihood", "log_likeli", "deviance", "deviance_res")
+
+for(i in 1:nrow(plot_data)){ # loop over rows
+  p[i] <- r/(r + plot_data[['col.means']][i])
+  likelihood[i,1] <- dnbinom(plot_data[['fish_count_new']][i], prob=p[i], size= r)
+  likelihood[i,2]<-log(likelihood[i,1])
+  likelihood[i,3] = -2*likelihood[i,2]
+  likelihood[i,4] = sign(plot_data[['fish_count_new']][i] - plot_data[['col.means']][i]) * sqrt(likelihood[i,3])
+}
+
+sum(likelihood$deviance)
+hist(likelihood$deviance_res)
+
+write.csv(likelihood, "Data/output/model2_deviance_fold2.csv", row.names = FALSE)
+
+#other try - give same answer
+#likelihood <- data.frame(matrix(ncol=3, nrow =c(length(plot_data[[1]])) ) )
+
+#for(i in 1:nrow(plot_data)){ # loop over rows
+ # likelihood[i,1] <- dnbinom(plot_data[['fish_count_new']][i], mu=plot_data[['col.means']][i], size= r)
+  #  likelihood[i,2]<-log(likelihood[i,1])
+   # likelihood[i,3] = -2*likelihood[i,2]
+    #}
+
+#sum(likelihood$X3)
 
 ###  plot model fits  #### 
 library(bayesplot)
