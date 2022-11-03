@@ -1,10 +1,9 @@
 #### estimation of relative abundance
-
-#### relative abundance hist ####
-
 #use model 2 - better model 
 
-#*read in model output ####
+
+#### relative abundance historical ####
+#*read in model output and data ####
 output<-readRDS("Data/output/output_model2_secchi_fold5_lakes.rds")
 
 #set up simulation parameters 
@@ -22,10 +21,8 @@ hist_dat$logeffort<-log(hist_dat$effort_sum)
 ## standardize and transform predictor values ##
 hist_dat$z_lake_area<-as.numeric(scale(log(hist_dat$lake_area_m2))) #good 
 hist_dat$z_max_depth<-as.numeric(scale(log(hist_dat$max_depth_m))) #good 
-hist_dat$z_dd_year-as.numeric(scale(log(hist_dat$dd_year))) #good
 hist_dat$z_surface_temp_year<-as.numeric(scale(log(hist_dat$surface_temp_year))) #good 
 hist_dat$z_secchi<-as.numeric(scale(log(hist_dat$secchi_combo)))
-hist_dat$z_bottom_do<-as.numeric(scale(log(hist_dat$bottom_do + 0.001))) ##has 0s so added 0.001 
 hist_dat$z_julian<-as.numeric(scale(hist_dat$julian)) ##standardize julian date 
 hist_dat$z_ws_forest<-as.numeric(scale(asin(sqrt(hist_dat$ws_forest_prop)))) #good
 hist_dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(hist_dat$ws_wetland_prop)))) #good
@@ -69,9 +66,8 @@ hist_just_lake<-dup %>%
   ungroup %>% 
   mutate(gear_index = ifelse(gear == "gill", 2, 3))
 
-# Container for predicted values
-#logq1 is FT which is neutral, 2 is gill, 3 is seine, 4 is shock 
-predict_hist<- array(NA, c(nsim,length(hist_just_lake[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
+#* predict density histrocial ####
+predict_hist<- array(NA, c(nsim,length(hist_just_lake[[1]]))) 
 dim(predict_hist)
 
 #use regional mu.alphas instead of site specific, since dif sites, use estimated q and effort = 1
@@ -85,22 +81,9 @@ for(i in 1:nsim ){  #loop over sims
   }
 }
 
-#container for p values 
-#parametrization is by the dispersion parameter, where prob = size/(size+mu).
-#p is the success parameter and r is the dispersion parameter.
-p_hist <- array(NA, c(nsim,length(hist_just_lake[[1]])) )
-exp_abund_hist <- array(NA, c(nsim,length(hist_just_lake[[1]])) )
-
-for(i in 1:nrow(predict_hist)){ # loop over rows (sims)
-  for(t in 1:ncol(predict_hist) ){ #loop over columns(obs)
-    p_hist[i,t] <- coefs[ID[i],'r']/(coefs[ID[i],'r'] + predict_hist[i,t])
-    exp_abund_hist[i,t] <- rnbinom(1, prob=p_hist[i,t], size= coefs[ID[i],'r'])
-  }
-}
-
-#From this distribution, you can extract the median and the 2.5% and 97.5% percentiles (95% credible interval),
-hist.med <- apply(exp_abund_hist, 2, median )
-hist.means <- apply(exp_abund_hist, 2, mean )
+#From this distribution, you can extract the median/mean and the 2.5% and 97.5% percentiles (95% credible interval),
+hist.med <- apply(predict_hist, 2, median )
+hist.means <- apply(predict_hist, 2, mean )
 
 #prep data for plotting
 abund_data=data.frame(hist.med, hist.means) 
@@ -117,6 +100,7 @@ hist_sum_dens<-aggregate(map_data$hist.means, by=list(new_key=map_data$new_key),
   rename(sum_dens = x)
 
 #### relative abundance contemporary ####
+#*read in data ####
 dat<-read.csv("Data/lmb_dat_for_model_aug30.csv") 
 surface_temp<-read.csv("Data/MI_data/lake_surface_temp.csv")%>%
   group_by(IHDLKID) %>%
@@ -136,7 +120,6 @@ dat$z_lake_area<-as.numeric(scale(log(dat$lake_area_m2))) #good
 dat$z_max_depth<-as.numeric(scale(log(dat$maxdepth_m))) #good 
 dat$z_surface_temp_year<-as.numeric(scale(log(dat$surf_temp_year))) #good 
 dat$z_secchi<-as.numeric(scale(log(dat$secchi_m)))
-dat$z_bottom_do<-as.numeric(scale(log(dat$bottom_do_mgl+ 0.001))) ##has 0s so added 0.001 
 dat$z_doy<-as.numeric(scale(dat$day_of_year)) ##standardize julian date 
 dat$z_ws_forest<-as.numeric(scale(asin(sqrt(dat$ws_forest_prop)))) #good
 dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat$ws_wetland_prop)))) #good
@@ -186,8 +169,8 @@ cont_just_lake<-dup %>%
   mutate(gear_index = ifelse(gear == "gill", 2, 3))
 
 
-# Container for predicted values
-predict_cont<- array(NA, c(nsim,length(cont_just_lake[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
+#* predict contemporary ####
+predict_cont<- array(NA, c(nsim,length(cont_just_lake[[1]]))) 
 dim(predict_cont)
 
 #use lake/site specific alphas and environment, no gear data 
@@ -201,22 +184,10 @@ for(i in 1:nsim ){  #loop over sims
   }
 }
 
-#container for p values 
-#parametrization is by the dispersion parameter, where prob = size/(size+mu).
-#p is the success parameter and r is the dispersion parameter.
-p_cont <- array(NA, c(nsim,length(cont_just_lake[[1]])) )
-exp_abund_cont <- array(NA, c(nsim,length(cont_just_lake[[1]])) )
-
-for(i in 1:nrow(predict_cont)){ # loop over rows (sims)
-  for(t in 1:ncol(predict_cont) ){ #loop over columns(obs)
-    p_cont[i,t] <- coefs[ID[i],'r']/(coefs[ID[i],'r'] + predict_cont[i,t])
-    exp_abund_cont[i,t] <- rnbinom(1, prob=p_cont[i,t], size= coefs[ID[i],'r'])
-  }
-}
 
 #From this distribution, you can extract the median and the 2.5% and 97.5% percentiles (95% credible interval),
-cont.med.abund <- apply(exp_abund_cont, 2, median )
-cont.means.abund <- apply(exp_abund_cont, 2, mean )
+cont.med.abund <- apply(predict_cont, 2, median )
+cont.means.abund <- apply(predict_cont, 2, mean )
 
 #prep data for plotting
 cont_abund_data=data.frame(cont.med.abund, cont.means.abund) 
@@ -233,7 +204,7 @@ cont_sum_dens<-aggregate(cont_map_data$cont.means.abund, by=list(new_key=cont_ma
   rename(sum_dens = x)
 
 
-#*map predicted abundance ####
+##### map predicted abundance ####
 library(ggmap)
 library(stringr)
 library(devtools)
@@ -252,6 +223,7 @@ summary(log(hist_abund_map_dat$sum_dens))
 summary(log(cont_abund_map_dat$sum_dens ))
 summary(hist_abund_map_dat$sum_dens)
 summary(cont_abund_map_dat$sum_dens)
+
 #get MI basemap 
 MI_basemap<-map_data("state") %>%
   subset(region %in% c("michigan")) # select michigan 
@@ -259,37 +231,20 @@ p<-ggplot(data = MI_basemap) +
   geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black") + #this fill MI white and outline is black
   coord_fixed(1.3) 
 #map of lmb abund historical 
-p+ geom_point(data=hist_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(sum_dens)), alpha = 0.7) + 
-  scale_colour_gradientn(colours = c("tan", "green","skyblue", "midnightblue"),
-                         limits = c(0,16))  + 
-  labs(color="lmb abund", tag = "c") + #changes the labels on the legend 
-  theme(legend.position = "bottom", 
-        plot.tag = element_text(), 
-        plot.tag.position = c(0.1,0.95)) + 
-  ylab(NULL) + xlab(NULL)
 #log
-hist_map<-p+ geom_point(data=hist_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens + 1))), size = 3) + 
-  scale_colour_gradient(low = "gray", high = "darkblue", limits = c(-3.6,3))  + 
+hist_map<-p+ geom_point(data=hist_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens))), size = 3) + 
+  scale_color_viridis(direction = -1, limits = c(-3.5,3) )  + #
   labs(color="log relative density", tag = "a")  +#changes the labels on the legend 
   theme(legend.position = "bottom", 
         plot.tag = element_text(), 
         plot.tag.position = c(0.1,0.95)) + 
   ylab(NULL) + xlab(NULL)
 hist_map
+
 #map of lmb abund contemporary 
-p+ geom_point(data=cont_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(sum_dens)), size = 3) + 
-  scale_colour_gradient(low = "gray", high = "darkblue",
-                         limits = c(0,16))  + 
-  labs(color="lmb abund", tag = "d")  +  #changes the labels on the legend
-  theme(legend.position = "bottom", 
-        plot.tag = element_text(), 
-        plot.tag.position = c(0.1,0.95)) + 
-  ylab(NULL) + xlab(NULL)
-
-
 #log
-cont_map<-p+ geom_point(data=cont_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens + 1))), size = 3) + 
-  scale_colour_gradient(low = "gray", high = "darkblue", limits = c(-3.6,3))  + 
+cont_map<-p+ geom_point(data=cont_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens))), size = 3) + 
+  scale_color_viridis(direction = -1, limits = c(-3.5,3) )  + #
   labs(color="log relative density", tag = "b") +  #changes the labels on the legend
   theme(legend.position = "bottom", 
         plot.tag = element_text(), 
@@ -298,7 +253,7 @@ cont_map<-p+ geom_point(data=cont_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, co
 
 cont_map
 #* save as 2-panel plot 
-map_model2<-cowplot::plot_grid(hist_map, cont_map, labels = c("a", "b"))
+map_model2<-cowplot::plot_grid(hist_map, cont_map)
 map_model2
 
 ggsave(plot=map_model2, 
@@ -366,8 +321,6 @@ hist_dat<-hist_just_lake %>%
   mutate(type='historical')
 plot_dat<-rbind(cont_dat, hist_dat)
 
-ggplot(data=plot_dat, aes(x=z_surface_temp_year, y=log(sum_dens), color=type)) + 
-  geom_point()
 
 gam_plot<-ggplot(data=plot_dat, aes(x=LAT_DD, y=log(sum_dens), color=type)) + 
   geom_point()  +
@@ -377,5 +330,5 @@ gam_plot<-ggplot(data=plot_dat, aes(x=LAT_DD, y=log(sum_dens), color=type)) +
   xlab("latitude") + ylab("density (log)") + 
   theme(legend.position = c(0.9,0.8), legend.text=element_text(size=14), 
         axis.title = element_text(size=16), axis.text = element_text(size=14))
-
+gam_plot
 ggsave("figures/gam_plot.png", gam_plot)

@@ -19,28 +19,14 @@ surface_temp<-read.csv("Data/MI_data/lake_surface_temp.csv")%>%
     values_to = "surf_temp_year") %>% 
   mutate(year = as.integer(as.character(year)))
 
-dd_temp<-read.csv("Data/MI_data/lake_degree_days_year.csv")%>%
-  group_by(IHDLKID) %>%
-  slice_max(HECTARES) %>% 
-  rename(nhdid = IHDLKID)%>% 
-  pivot_longer(
-    cols= starts_with("DD_"),
-    names_to = "year", 
-    names_prefix = "DD_",
-    values_to = "dd_year")%>% 
-  mutate(year = as.integer(as.character(year)))
-
-dat<-left_join(dat, dd_temp, by = c("nhdid", "year")) %>% 
-  left_join(surface_temp, by = c("nhdid", "year"))
+dat<-left_join(dat, surface_temp, by = c("nhdid", "year")) 
 
 ## standardize and transform predictor values ##
 #dat$z_order<-as.numeric(scale(log(dat$lake_order+0.001))) # min is 0 because these are the isolated
 dat$z_lake_area<-as.numeric(scale(log(dat$lake_area_m2))) #good 
 dat$z_max_depth<-as.numeric(scale(log(dat$maxdepth_m))) #good 
-dat$z_dd_year<-as.numeric(scale(log(dat$dd_year))) #good
 dat$z_surface_temp_year<-as.numeric(scale(log(dat$surf_temp_year))) #good 
 dat$z_secchi<-as.numeric(scale(log(dat$secchi_m)))
-dat$z_bottom_do<-as.numeric(scale(log(dat$bottom_do_mgl+ 0.001))) ##has 0s so added 0.001 
 dat$z_doy<-as.numeric(scale(dat$day_of_year)) ##standardize julian date 
 dat$z_ws_forest<-as.numeric(scale(asin(sqrt(dat$ws_forest_prop)))) #good
 dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat$ws_wetland_prop)))) #good
@@ -104,10 +90,9 @@ cont_test<-cont_test %>%
                           gear2 == "GILL" ~ 2,
                           gear2 == "SEINE" ~ 3, 
                           gear2 == "SHOCK" ~ 4)
-  )
+  ) %>% 
+  mutate(IND = ifelse(cont_test$gear2 == "FT_NET", 0, 1)) #FT_NET is the reference gear
 
-#create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
-cont_test$IND<-ifelse(cont_test$gear2 == "FT_NET", 0, 1) #FT_NET is the reference gear
 
 # Container for predicted values using the test dataset 5
 #logq1 is FT which is neutral, 2 is gill, 3 is seine, 4 is shock 
@@ -140,11 +125,11 @@ for(i in 1:nrow(predictions_sim)){ # loop over rows (sims)
 }
 
 #From this distribution, you can extract the median and the 2.5% and 97.5% percentiles (95% credible interval),
-col.med <- apply(exp_catch, 2, median )
-col.means <- apply(exp_catch, 2, mean )
+col.med <- apply(predictions_sim, 2, median )
+col.means <- apply(predictions_sim, 2, mean )
 # 95% CIs for fitted values
-upperPI <- apply(exp_catch, 2, quantile, probs=c(0.975) )
-lowerPI <- apply(exp_catch, 2, quantile, probs=c(0.025) )
+upperPI <- apply(predictions_sim, 2, quantile, probs=c(0.975) )
+lowerPI <- apply(predictions_sim, 2, quantile, probs=c(0.025) )
 
 #prep data for plotting
 med_data=data.frame(col.med, col.means, upperPI, lowerPI) 
@@ -162,6 +147,8 @@ cont_plot_data<-left_join(med_data, obs_catch) %>%
   mutate(type = "contemporary") %>% 
   select(-c(gear2))
 
+plot(cont_plot_data$col.means, cont_plot_data$fish_count_new)
+
 #### historical fit #### 
 hist_dat<-read.csv("Data/historical_lmb2_with_secchi.csv") %>% 
   drop_na(secchi_combo) #only use samples with secchi from contemp data 
@@ -171,10 +158,8 @@ hist_dat$logeffort<-log(hist_dat$effort_sum)
 ## standardize and transform predictor values ##
 hist_dat$z_lake_area<-as.numeric(scale(log(hist_dat$lake_area_m2))) #good 
 hist_dat$z_max_depth<-as.numeric(scale(log(hist_dat$max_depth_m))) #good 
-hist_dat$z_dd_year-as.numeric(scale(log(hist_dat$dd_year))) #good
 hist_dat$z_surface_temp_year<-as.numeric(scale(log(hist_dat$surface_temp_year))) #good 
 hist_dat$z_secchi<-as.numeric(scale(log(hist_dat$secchi_combo)))
-hist_dat$z_bottom_do<-as.numeric(scale(log(hist_dat$bottom_do + 0.001))) ##has 0s so added 0.001 
 hist_dat$z_julian<-as.numeric(scale(hist_dat$julian)) ##standardize julian date 
 hist_dat$z_ws_forest<-as.numeric(scale(asin(sqrt(hist_dat$ws_forest_prop)))) #good
 hist_dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(hist_dat$ws_wetland_prop)))) #good
@@ -195,10 +180,9 @@ hist_dat<-hist_dat %>%
     gear_index = case_when( gear == "FT_net" ~ 1,
                             gear == "gill" ~ 2,
                             gear == "seine" ~ 3)
-  )
+  ) %>%
+  mutate(IND=ifelse(gear == "FT_net", 0, 1)) #FT_NET is the reference gear
 
-#create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
-hist_dat$IND<-ifelse(hist_dat$gear == "FT_net", 0, 1) #FT_NET is the reference gear
 
 #pull out about 50 lakes to match contemporary test dataset 
 hist1<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 1, type =c("grouped"))
@@ -233,16 +217,16 @@ exp_catch_hist <- array(NA, c(nsim,length(hist_test[[1]])) )
 for(i in 1:nrow(predict_hist)){ # loop over rows (sims)
   for(t in 1:ncol(predict_hist) ){ #loop over columns(obs)
     p_hist[i,t] <- coefs[ID[i],'r']/(coefs[ID[i],'r'] + predict_hist[i,t])
-    exp_catch_hist[i,t] <- rnbinom(1, prob=p_hist[i,t], size= coefs[ID[i],'r'])
+    exp_catch_hist[i,t] <- rnbinom(1, mu=p_hist[i,t], size= coefs[ID[i],'r'])
   }
 }
 
 #From this distribution, you can extract the median and the 2.5% and 97.5% percentiles (95% credible interval),
-hist.med <- apply(exp_catch_hist, 2, median )
-hist.means <- apply(exp_catch_hist, 2, mean )
+hist.med <- apply(predict_hist, 2, median )
+hist.means <- apply(predict_hist, 2, mean )
 # 95% CIs for fitted values
-upperPI <- apply(exp_catch_hist, 2, quantile, probs=c(0.975) )
-lowerPI <- apply(exp_catch_hist, 2, quantile, probs=c(0.025) )
+upperPI <- apply(predict_hist, 2, quantile, probs=c(0.975) )
+lowerPI <- apply(predict_hist, 2, quantile, probs=c(0.025) )
 
 #prep data for plotting
 med_data=data.frame(hist.med, hist.means, upperPI, lowerPI) 
@@ -259,6 +243,7 @@ hist_plot_data<-left_join(med_data, hist_catch) %>%
   rename(col.med=hist.med, col.means=hist.means, fish_count_new=largemouthbass_sum ) %>% 
   mutate(type = "historical")
 
+plot(hist_plot_data$col.means, hist_plot_data$fish_count_new)
 
 #* plot #### 
 #combine cont and hist data to plot together 
@@ -279,7 +264,7 @@ pred_plot_log<-ggplot(data=both_data, aes(x=log(col.means+1), y=log(fish_count_n
 
 
 model2_hist_cont_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
-
+model2_hist_cont_pred_obs
 
 ggsave(plot=model2_hist_cont_pred_obs, 
        device = "png", 
