@@ -6,6 +6,10 @@ library(devtools)
 library(mapdata)
 library(dplyr)
 library(ggpubr)
+library(sf)
+library(ggplot2)
+library(cowplot)
+library(spData)
 
 #### For Figure 1 sampling locations #### 
 #get the lat/long points 
@@ -35,17 +39,19 @@ hist_points<-hist_dat  %>%
 #shapefile with the FMU boundaries 
 library(sf)
 fmu_shape<- st_read(dsn = "/Users/katelynking/Desktop/UofM/CHANGES/SNT_data/MDNR_FMUs", layer = "Michigan_DNR_Fisheries_Management_Units") 
+raster::crs(fmu_shape)
 
 #combine data for map 
 map_data<-rbind(cont_points, hist_points)
 
-ggplot() +
+map_of_data<-ggplot() +
   geom_sf(data=fmu_shape, aes(), fill = "white") + 
   geom_point(data=map_data, aes(x = LONG_DD, y = LAT_DD, color=c(data) )) +
   theme_bw() +  
   theme( panel.grid.major = element_blank(),
          panel.grid.minor = element_blank()) +
-  clean_theme() +   
+  #clean_theme() + 
+  theme_void() +
   scale_colour_manual(values = c("darkblue", "lightsalmon"), 
                       name= '') +
   theme(legend.position = c(0.20, 0.25), 
@@ -53,65 +59,28 @@ ggplot() +
 
 map_of_data
 
-ggsave("/Users/katelynking/Desktop/map_of_data.png", map_of_data)
 
+# get US inset 
+data("us_states", package = "spData")
+us_states = st_transform(us_states, crs = "+proj=longlat +datum=WGS84 +no_defs") #match the FMU shapefile
+MI_box = st_as_sfc(st_bbox(fmu_shape))
 
-####map of lmb abund #### 
-model1_cont_preds<-read.csv("Data/output/model1_cont_abund_pred.csv")
-model1_hist_preds<-read.csv("Data/output/model1_hist_abund_pred.csv")
-model2_cont_preds<-read.csv("Data/output/model2_cont_abund_pred.csv")
-model2_hist_preds<-read.csv("Data/output/model2_hist_abund_pred.csv")
+us_map<-ggplot() + 
+  geom_sf(data = us_states, fill = "white") + 
+  geom_sf(data = MI_box, fill = NA, color = "red", size = 1.2) +
+  theme_void()
 
+us_map
 
-#get MI basemap 
-MI_basemap<-map_data("state",  region = c("michigan"))  # select michigan 
-map<-ggplot(data = MI_basemap) + 
-  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black") + #this fill MI white and outline is black
-  coord_fixed(1.3) 
+inset_map = ggdraw() +
+  draw_plot(map_of_data) +
+  draw_plot(us_map, x = 0.05, y = 0.35, width = 0.3, height = 0.3)
 
-#model 1 hist
-mod1_hist<-map+ geom_point(data=model1_hist_preds, aes(x = LONG_DD, y = LAT_DD, colour = c(hist.means))) + 
-  scale_colour_gradient(low = "yellow", high = "darkblue")  + 
-  labs(color="relative density", tag = "a") + #changes the labels on the legend and add panel letter
-  ylab(NULL) + xlab(NULL) + 
-  theme_bw() + theme(legend.position = "bottom", 
-                     plot.tag=element_text(), 
-                     plot.tag.position = c(0.1,0.95)) 
+inset_map
 
-#model1 contemp
-mod1_cont<-map+ geom_point(data=model1_cont_preds, aes(x = LONG_DD, y = LAT_DD, colour = c(cont.means.abund))) + 
-                scale_colour_gradient(low = "yellow", high = "darkblue")  + 
-                labs(color="relative density", tag = "b") + #changes the labels on the legend and add panel letter
-                  ylab(NULL) + xlab(NULL) + 
-               theme_bw() + theme(legend.position = "bottom", 
-                     plot.tag=element_text(), 
-                     plot.tag.position = c(0.1,0.95)) 
-
-#model 2 hist
-mod2_hist<-map+ geom_point(data=model2_hist_preds, aes(x = LONG_DD, y = LAT_DD, colour = c(hist.means))) + 
-  scale_colour_gradient(low = "yellow", high = "darkblue")  + 
-  labs(color="relative density", tag = "c") + #changes the labels on the legend and add panel letter
-  theme_bw() + theme(legend.position = "bottom", 
-                     plot.tag=element_text(), 
-                     plot.tag.position = c(0.1,0.95)) + 
-  ylab(NULL) + xlab(NULL)
-
-#model 2 contemp
-mod2_cont<-map+ geom_point(data=model2_cont_preds, aes(x = LONG_DD, y = LAT_DD, colour = c(cont.means.abund))) + 
-  scale_colour_gradient(low = "yellow", high = "darkblue", limits=c(0,15))  + 
-  labs(color="relative density", tag = "d") + #changes the labels on the legend and add panel letter
-  theme_bw() + theme(legend.position = "bottom", 
-                     plot.tag=element_text(), 
-                     plot.tag.position = c(0.1,0.95)) +
-  ylab(NULL) + xlab(NULL)
-
-mapfig7<-cowplot::plot_grid(mod1_hist, mod1_cont, mod2_hist, mod2_cont)
-
-
-ggsave(plot=mapfig7, 
-       device="png", 
-       filename = "figures/mapfig7.png", 
-       dpi=600, height = 8, width=8, units ="in", 
-       bg="#ffffff")
-
+ggsave( inset_map, 
+          device = "png", 
+          filename = "figures/map_of_data.png", 
+          dpi = 600, height = 8, width = 8, units = "in",
+          bg="#ffffff") #sets background to white 
 
