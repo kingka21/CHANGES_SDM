@@ -1,6 +1,7 @@
 #### size investigation ####
 library(dplyr)
 library(tidyr)
+library(ggplot2)
 
 lake_info<-read.csv("Data/MI_data/snt_lake_info.csv") %>% 
   select(new_key, survey_number)
