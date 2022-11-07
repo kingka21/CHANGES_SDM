@@ -53,9 +53,20 @@ dev_res<-ggplot(dev_res_histogram, aes(x=deviance_res, fill=time)) +
   scale_fill_manual(values=c("lightblue", "lightsalmon")) +
   guides(fill=guide_legend(title='')) + 
   theme(legend.position = c(0.9,0.8), legend.text=element_text(size=14))
+dev_res
 
 ggsave(plot=dev_res, 
        device = "png", 
        filename = "figures/dev_res_histogram.png", 
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white
+
+#### Kolmogorov-Smirnov Test #### 
+#test the two distributions from each fold
+#do the two datasets come from the same distribution 
+ks.test(mod2_f1, mod2_hist_f1$deviance_res)
+ks.test(mod2_f2, mod2_hist_f2$deviance_res)
+ks.test(mod2_f3, mod2_hist_f3$deviance_res)
+ks.test(mod2_f4, mod2_hist_f4$deviance_res)
+ks.test(mod2_f5, mod2_hist_f5$deviance_res)
+(0.1315+ 0.05412+ 0.06793+ 0.05384 + 0.05221) /5
