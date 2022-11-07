@@ -243,7 +243,7 @@ cat('Posterior computed in ', elapsed.time, ' minutes\n\n', sep='')
 
 #save output 
 #saveRDS(output, "Data/output/output_model2_secchi_fold5_lakes.rds") 
-output<-readRDS("Data/output/output_model2_secchi_fold2_lakes.rds")
+output<-readRDS("Data/output/output_model2_secchi_fold5_lakes.rds")
 
 
 #* Summarize posteriors ####
@@ -283,7 +283,7 @@ chainLength <- output$BUGSoutput$n.sims
 ID = seq( 1 , chainLength , floor(chainLength/nsim) )
 
 #* predict to test dataset ####
-cont_test<-test2# just change this input each time 
+cont_test<-test5# just change this input each time 
 n_distinct(cont_test$new_key)
 
 #need to add management unit index and gear index
@@ -322,26 +322,13 @@ for(i in 1:nsim ){  #loop over sims
 }
 
 
-#container for p values 
-#parametrization is by the dispersion parameter, where prob = size/(size+mu).
-#p is the success parameter and r is the dispersion parameter.
-p <- array(NA, c(nsim,length(cont_test[[1]])) )
-exp_catch <- array(NA, c(nsim,length(cont_test[[1]])) )
-
-for(i in 1:nrow(predictions_sim)){ # loop over rows (sims)
-  for(t in 1:ncol(predictions_sim) ){ #loop over columns(obs)
-    p[i,t] <- coefs[ID[i],'r']/(coefs[ID[i],'r'] + predictions_sim[i,t])
-    exp_catch[i,t] <- rnbinom(1, prob=p[i,t], size= coefs[ID[i],'r'])
-  }
-}
-
 #From this distribution, you can extract the median and the 2.5% and 97.5% percentiles (95% credible interval),
-col.med <- apply(exp_catch, 2, median )
-col.means <- apply(exp_catch, 2, mean )
+col.med <- apply(predictions_sim, 2, median )
+col.means <- apply(predictions_sim, 2, mean )
 
 # 95% CIs for fitted values
-upperCI.Group <- apply(exp_catch, 2, quantile, probs=c(0.975) )
-lowerCI.Group <- apply(exp_catch, 2, quantile, probs=c(0.025) )
+upperCI.Group <- apply(predictions_sim, 2, quantile, probs=c(0.975) )
+lowerCI.Group <- apply(predictions_sim, 2, quantile, probs=c(0.025) )
 
 #prep data for plotting
 med_data=data.frame(col.med, col.means, upperCI.Group, lowerCI.Group) 
@@ -360,6 +347,40 @@ plot_data<-left_join(med_data, obs_catch) %>%
 #plot( med_data$col.med , obs_catch$fish_count_new)
 #plot( med_data$col.means, obs_catch$fish_count_new)
 
+#*get deviance and residual deviance #### 
+#p is the success parameter (where prob = size/(size+mu)) and r is the dispersion parameter.
+#calculate the log-likelihood (L) for each fold (each observation gets a prob and then sum the obs)
+p <- array(NA, c(nsim,length(cont_test[[1]])) ) #container for p values 
+likeli_cont <- array(NA, c(nsim,length(cont_test[[1]])) )
+
+for(i in 1:nrow(predictions_sim)){ # loop over rows (sims)
+  for(t in 1:ncol(predictions_sim) ){ #loop over columns(obs)
+    p[i,t] <- coefs[ID[i],'r']/(coefs[ID[i],'r'] + predictions_sim[i,t])
+    likeli_cont[i,t] = -2*(log(dnbinom(cont_test[['fish_count_new']][t], mu=p[i,t], size= coefs[ID[i],'r']))) #deviance for each obs
+  }
+}
+
+#*#deviance 
+#need to sum across columns (observations) to get a dist of the deviance with 3000 values 
+#then take mean
+likeli_cont[is.infinite(likeli_cont)] <- NA
+deviance<-rowSums(likeli_cont, na.rm = TRUE)
+mean(deviance, na.rm = TRUE)
+
+#* deviance residuals 
+dev_resid_cont <- data.frame(matrix(ncol=1, nrow =c(length(cont_test[[1]]))) ) # will hold all of the 5 test sets for a fold 
+colnames(dev_resid_cont) <- c("deviance_res")
+
+#From the posterior distribution of deviance get the mean for each observation 
+plot_data$dev_means <- apply(likeli_cont, 2, mean,  na.rm = TRUE )
+
+#add deviance residuals
+for(i in 1:nrow(plot_data)){ # loop over rows
+  dev_resid_cont[i,1] = sign(plot_data[['fish_count_new']][i] - plot_data[['col.means']][i]) * sqrt(plot_data[['dev_means']][i])
+}
+
+write.csv(dev_resid_cont, "Data/output/model2_cont_res_dev_fold5.csv", row.names = FALSE)
+
 #*compare predicted to the observed catch for that combination of lake and gear ####
 #One suggestion for visualizing the model fit is to generate a separate graph for each gear, 
 #plot the median predicted catches (+- the 95% ci) of different lakes on the x-axis versus the observed catches of lakes on the y-axis.
@@ -373,17 +394,16 @@ pred_plot<-ggplot()+
 pred_plot+facet_wrap(~ gear2, ncol=2, scales = 'free') #allow scales to vary 
 
 #plot log scale 
-pred_plot_log<-ggplot(data=plot_data, aes(x=log(col.means+1), y=log(fish_count_new + 1), xmax=log(upperCI.Group +1), xmin=log(lowerCI.Group +1) ) )+
+ggplot(data=plot_data, aes(x=log(col.means+1), y=log(fish_count_new + 1), xmax=log(upperCI.Group +1), xmin=log(lowerCI.Group +1) ) )+
   geom_pointrange( color="grey" )+ 
   geom_point(color="black")+ 
   xlab('predicted catch (log)')+
   ylab('observed catch (log)')+
   theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
   geom_abline(intercept = 0, slope = 1)
-pred_plot_log
 
 model2_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
-
+model2_pred_obs
 
 ggsave(plot=model2_pred_obs, 
        device = "png", 
@@ -391,25 +411,25 @@ ggsave(plot=model2_pred_obs,
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white 
 
-#### deviance #### 
+#### old deviance #### 
 #calculate the log-likelihood (L) for each fold (each observation gets a prob and then sum)
-r<-mean(output$BUGSoutput$sims.list$r)
+#r<-mean(output$BUGSoutput$sims.list$r)
 
-likelihood <- data.frame(matrix(ncol=4, nrow =c(length(plot_data[[1]])) ) )
-colnames(likelihood) <- c("likelihood", "log_likeli", "deviance", "deviance_res")
+#likelihood <- data.frame(matrix(ncol=4, nrow =c(length(plot_data[[1]])) ) )
+#colnames(likelihood) <- c("likelihood", "log_likeli", "deviance", "deviance_res")
 
-for(i in 1:nrow(plot_data)){ # loop over rows
-  p[i] <- r/(r + plot_data[['col.means']][i])
-  likelihood[i,1] <- dnbinom(plot_data[['fish_count_new']][i], prob=p[i], size= r)
-  likelihood[i,2]<-log(likelihood[i,1])
-  likelihood[i,3] = -2*likelihood[i,2]
-  likelihood[i,4] = sign(plot_data[['fish_count_new']][i] - plot_data[['col.means']][i]) * sqrt(likelihood[i,3])
-}
+#for(i in 1:nrow(plot_data)){ # loop over rows
+ # p[i] <- r/(r + plot_data[['col.means']][i])
+  #likelihood[i,1] <- dnbinom(plot_data[['fish_count_new']][i], prob=p[i], size= r)
+  #likelihood[i,2]<-log(likelihood[i,1])
+  #likelihood[i,3] = -2*likelihood[i,2]
+  #likelihood[i,4] = sign(plot_data[['fish_count_new']][i] - plot_data[['col.means']][i]) * sqrt(likelihood[i,3])
+#}
 
-sum(likelihood$deviance)
-hist(likelihood$deviance_res)
+#sum(likelihood$deviance)
+#hist(likelihood$deviance_res)
 
-write.csv(likelihood, "Data/output/model2_deviance_fold2.csv", row.names = FALSE)
+#write.csv(likelihood, "Data/output/model2_deviance_fold2.csv", row.names = FALSE)
 
 #other try - give same answer
 #likelihood <- data.frame(matrix(ncol=3, nrow =c(length(plot_data[[1]])) ) )
@@ -477,18 +497,13 @@ plot_data  %>%
 hist_dat<-read.csv("Data/historical_lmb2_with_secchi.csv") %>% 
   drop_na(secchi_combo) #only use samples with secchi from contemp data 
 
-#fix julian day 
-#hist_dat$julian<-ifelse(hist_dat$new_key == '65-63', 181, hist_dat$julian)
-
 #set up data 
 hist_dat$logeffort<-log(hist_dat$effort_sum)
 ## standardize and transform predictor values ##
 hist_dat$z_lake_area<-as.numeric(scale(log(hist_dat$lake_area_m2))) #good 
 hist_dat$z_max_depth<-as.numeric(scale(log(hist_dat$max_depth_m))) #good 
-hist_dat$z_dd_year-as.numeric(scale(log(hist_dat$dd_year))) #good
 hist_dat$z_surface_temp_year<-as.numeric(scale(log(hist_dat$surface_temp_year))) #good 
 hist_dat$z_secchi<-as.numeric(scale(log(hist_dat$secchi_combo)))
-hist_dat$z_bottom_do<-as.numeric(scale(log(hist_dat$bottom_do + 0.001))) ##has 0s so added 0.001 
 hist_dat$z_julian<-as.numeric(scale(hist_dat$julian)) ##standardize julian date 
 hist_dat$z_ws_forest<-as.numeric(scale(asin(sqrt(hist_dat$ws_forest_prop)))) #good
 hist_dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(hist_dat$ws_wetland_prop)))) #good
@@ -512,19 +527,13 @@ hist_dat<-hist_dat %>%
                        MGMT_UNIT== "Southern Lake Huron" ~ 6,
                        MGMT_UNIT== "Southern Lake Michigan" ~ 7,
                        MGMT_UNIT== "Western Lake Superior" ~ 8)
-  )
-
-#need gear number to match original data (no shock) 
-#logq1 is FT which is neutral, 2 is gill, 3 is seine, 4 is shock 
-hist_dat<-hist_dat %>% 
+  ) %>% 
   mutate(
-    gear_index = case_when( gear == "FT_net" ~ 1,
+    gear_index = case_when( gear == "FT_net" ~ 1, #need gear index to match original data (no shock) 
                             gear == "gill" ~ 2,
                             gear == "seine" ~ 3)
-  )
-
-#create an indicator variable “IND”, with value 0 for every sample using the reference gear and value 1 otherwise
-hist_dat$IND<-ifelse(hist_dat$gear == "FT_net", 0, 1) #FT_NET is the reference gear
+  ) %>% 
+  mutate(IND = ifelse(gear == "FT_net", 0, 1)) ##create an indicator variable “IND”
 
 #### *multiple test sets for each fold ####
 #pull out about 50 lakes to match contemporary test dataset 
@@ -539,7 +548,14 @@ hist_test4<-hist_dat[hist4$test,]
 hist5<-partition(hist_dat$new_key, p=c(train=0.4,test=0.6), seed = 5, type =c("grouped"))
 hist_test5<-hist_dat[hist5$test,]
 
-hist_test<-hist_test1# just change this input each time 
+#read in output data 
+output<-readRDS("Data/output/output_model2_secchi_fold5_lakes.rds")
+coefs <- output$BUGSoutput$sims.matrix[,1:256] 
+nsim <- 3000 # Number of desired MCMC samples used for prediction 
+chainLength <- output$BUGSoutput$n.sims # Chain length from analysis
+ID = seq( 1 , chainLength , floor(chainLength/nsim) ) # Select thinned steps in chain for posterior predictions to ensure we take values from length of posterior
+
+hist_test<-hist_test5# just change this input each time 
 n_distinct(hist_test$new_key)
 
 # Container for predicted values
@@ -558,26 +574,26 @@ for(i in 1:nsim ){  #loop over sims
   }
 }
 
-
-#container for p values 
-#parametrization is by the dispersion parameter, where prob = size/(size+mu).
-#p is the success parameter and r is the dispersion parameter.
+#*get residual deviance #### 
+#p is the success parameter (prob = size/(size+mu) and r is the dispersion parameter.
 p_hist <- array(NA, c(nsim,length(hist_test[[1]])) )
-exp_catch_hist <- array(NA, c(nsim,length(hist_test[[1]])) )
+likeli_hist <- array(NA, c(nsim,length(hist_test[[1]])) )
 
 for(i in 1:nrow(predict_hist)){ # loop over rows (sims)
   for(t in 1:ncol(predict_hist) ){ #loop over columns(obs)
     p_hist[i,t] <- coefs[ID[i],'r']/(coefs[ID[i],'r'] + predict_hist[i,t])
-    exp_catch_hist[i,t] <- rnbinom(1, prob=p_hist[i,t], size= coefs[ID[i],'r'])
+    likeli_hist[i,t] <- -2*(log(dnbinom(hist_test[['largemouthbass_sum']][t], mu=p_hist[i,t], size= coefs[ID[i],'r']))) #deviance 
   }
 }
 
-#From this distribution, you can extract the median and the 2.5% and 97.5% percentiles (95% credible interval),
-hist.med <- apply(exp_catch_hist, 2, median )
-hist.means <- apply(exp_catch_hist, 2, mean )
+
+#*From the posterior distribution of expected catch prediction extract the mean ####
+#and the 2.5% and 97.5% percentiles (95% credible interval)
+hist.med <- apply(predict_hist, 2, median )
+hist.means <- apply(predict_hist, 2, mean )
 # 95% CIs for fitted values
-upperPI <- apply(exp_catch_hist, 2, quantile, probs=c(0.975) )
-lowerPI <- apply(exp_catch_hist, 2, quantile, probs=c(0.025) )
+upperPI <- apply(predict_hist, 2, quantile, probs=c(0.975) )
+lowerPI <- apply(predict_hist, 2, quantile, probs=c(0.025) )
 
 #prep data for plotting
 med_data=data.frame(hist.med, hist.means, upperPI, lowerPI) 
@@ -591,15 +607,20 @@ plot_data<-left_join(med_data, hist_catch)
 plot( med_data$hist.med , hist_catch$largemouthbass_sum)
 plot( med_data$hist.means, hist_catch$largemouthbass_sum)
 
-ypred<-exp_catch_hist
-y<-plot_data$largemouthbass_sum
-e <- -1 * sweep(ypred, 2, y) #residual distribution 
-var_ypred <- apply(ypred, 1, var) # variance of modelled predictive means
-var_e <- apply(e, 1, var) #variance of modeled residuals 
-bayesR2res<- var_ypred / (var_ypred + var_e) #R^2
-round(median(bayesR2res), 2) #0.36
-sqrt(mean((plot_data$hist.means-plot_data$largemouthbass_sum)^2))
+#*residual deviance 
+#dev_resid <- data.frame(matrix(ncol=5, nrow =79) ) # will hold all of the 5 test sets for a fold 
+#colnames(dev_resid) <- c("test1", "test2", "test3", "test4", "test5")
 
+#From the posterior distribution of deviance get the mean for each observation 
+plot_data$dev_means <- apply(likeli_hist, 2, mean )
+
+#######
+#add residual deviance of each test to a new column 
+for(i in 1:nrow(hist_test)){ # loop over rows
+  dev_resid[i,5] = sign(plot_data[['largemouthbass_sum']][i] - plot_data[['hist.means']][i]) * sqrt(plot_data[['dev_means']][i])
+}
+
+#write.csv(dev_resid, "Data/output/model2_hist_res_dev_fold5.csv", row.names = FALSE)
 
 #remove fyke before plotting 
 plot_data_nofyke=filter(plot_data, gear != 'FT_net')
@@ -639,6 +660,7 @@ ggsave(plot=model2_hist_pred,
 #https://avehtari.github.io/bayes_R2/bayes_R2.html#2_Functions_for_Bayesian_R-squared_for_stan_glm_models
 ypred<-exp_catch_hist
 y<-plot_data$largemouthbass_sum
+
 e <- -1 * sweep(ypred, 2, y) #residual distribution 
 var_ypred <- apply(ypred, 1, var) # variance of modelled predictive means
 var_e <- apply(e, 1, var) #variance of modeled residuals 
@@ -676,8 +698,4 @@ plot_data  %>%
   geom_qq() +
   geom_qq_line()
 
-##### other stats ####
-mean(output$BUGSoutput$sims.list$b1[,1] > 0) # Posterior probability that Secchi effect is positive in  fyke 1 (look at all_ests for mean and CRI)
-mean(output$BUGSoutput$sims.list$b1[,2] > 0) # Posterior probability that Secchi effect is positive in  gill 2(look at all_ests for mean and CRI)
-mean(output$BUGSoutput$sims.list$b1[,4] > 0) # Posterior probability that Secchi effect is positive in  shock 4(look at all_ests for mean and CRI)
 
