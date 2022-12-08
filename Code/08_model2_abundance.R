@@ -1,6 +1,9 @@
 #### estimation of relative abundance
 #use model 2 - better model 
 
+library(dplyr)
+library(ggplot2)
+library(cowplot)
 
 #### relative abundance historical ####
 #*read in model output and data ####
@@ -308,7 +311,15 @@ ggsave(plot=abund_histogram_fig7,
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white 
 
-### latitude plot#### 
+### GAM latitude plot  #### 
+cont_dat<-read.csv("Data/output/model2_cont_abund_pred.csv") %>% 
+  mutate(type='contemporary')
+hist_dat<-read.csv("Data/output/model2_hist_abund_pred.csv") %>% 
+  mutate(type='historical')
+
+library(mgcv)
+
+
 cont_dat<-cont_just_lake %>% 
   distinct(new_key, .keep_all = TRUE) %>% 
   left_join(cont_abund_map_dat) %>% 
@@ -319,8 +330,61 @@ hist_dat<-hist_just_lake %>%
   left_join(hist_abund_map_dat) %>% 
   select(new_key, z_surface_temp_year, sum_dens, LAT_DD, LONG_DD)%>% 
   mutate(type='historical')
-plot_dat<-rbind(cont_dat, hist_dat)
 
+cont_gam<-mgcv::gam(log(sum_dens) ~ s(LAT_DD, bs="cs"), data = cont_dat)
+summary(cont_gam)
+
+#pull out data
+cont_plot_dat<-plot(cont_gam)
+
+#turn into dataframe
+dat2<-data.frame(x = cont_plot_dat[[1]]$x,
+                 y = cont_plot_dat[[1]]$fit,
+                 ymin = cont_plot_dat[[1]]$fit - cont_plot_dat[[1]]$se,
+                 ymax = cont_plot_dat[[1]]$fit + cont_plot_dat[[1]]$se)
+
+dat2_obs <- data.frame(x = cont_plot_dat[[1]]$raw)
+
+# plot cont gam
+p2<-ggplot(dat2, aes(x = x, y = y)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = ymin, ymax = ymax), color = 'gray', alpha = 0.3) +
+  labs(x = "latitude", y = "density (log)") +
+  geom_point(data = dat1_obs, aes(x = x, y = -Inf), shape = '|', size = 6, alpha = 0.10)
+p2
+
+
+hist_gam<-mgcv::gam(log(sum_dens) ~ s(LAT_DD), data = hist_dat)
+summary(hist_gam)
+
+AIC(cont_gam, hist_gam)
+anova(cont_gam, hist_gam)
+
+#pull out data
+hist_plot_dat<-plot(hist_gam)
+
+#turn into dataframe
+dat1<-data.frame(x = hist_plot_dat[[1]]$x,
+                 y = hist_plot_dat[[1]]$fit,
+                 ymin = hist_plot_dat[[1]]$fit - hist_plot_dat[[1]]$se,
+                 ymax = hist_plot_dat[[1]]$fit + hist_plot_dat[[1]]$se)
+
+dat1_obs <- data.frame(x = hist_plot_dat[[1]]$raw)
+
+# plot gam1
+p1<-ggplot(dat1, aes(x = x, y = y)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = ymin, ymax = ymax), color = 'gray', alpha = 0.3) +
+  labs(x = "latitude", y = "density (log)") +
+  geom_point(data = dat1_obs, aes(x = x, y = -Inf), shape = '|', size = 6, alpha = 0.10)
+p1
+
+
+
+#other plot where the two datasets are combined 
+plot_dat<-rbind(cont_dat, hist_dat)
+gam1 <- gam(log(sum_dens) ~ type + s(LAT_DD), data = plot_dat, method = "ML")
+summary(gam1) #looks like the time period is not really different 
 
 gam_plot<-ggplot(data=plot_dat, aes(x=LAT_DD, y=log(sum_dens), color=type)) + 
   geom_point()  +
