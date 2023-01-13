@@ -48,11 +48,12 @@ hist(hist_histogram$deviance_res)
 dev_res_histogram<-rbind(cont_histogram, hist_histogram)
 
 dev_res<-ggplot(dev_res_histogram, aes(x=deviance_res, fill=time)) +
-  geom_histogram(alpha=0.25, position="identity", aes(y = ..density..), color="black", bins = 10) +
+  geom_histogram(alpha=0.5, position="identity", aes(y = ..density..), color="black", bins = 10) +
   labs(x="deviance residuals", y = "frequency") + 
   scale_fill_manual(values=c("lightblue", "lightsalmon")) +
   guides(fill=guide_legend(title='')) + 
-  theme(legend.position = c(0.9,0.8), legend.text=element_text(size=14))
+  theme(legend.position = c(0.9,0.8), legend.text=element_text(size=14), axis.title = element_text(size=16), axis.text = element_text(size=14)) +
+  theme_bw()
 dev_res
 
 ggsave(plot=dev_res, 

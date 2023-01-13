@@ -25,35 +25,20 @@ surface_temp<-read.csv("Data/MI_data/lake_surface_temp.csv")%>%
     values_to = "surf_temp_year") %>% 
   mutate(year = as.integer(as.character(year)))
 
-dd_temp<-read.csv("Data/MI_data/lake_degree_days_year.csv")%>%
-  group_by(IHDLKID) %>%
-  slice_max(HECTARES) %>% 
-  rename(nhdid = IHDLKID)%>% 
-  pivot_longer(
-    cols= starts_with("DD_"),
-    names_to = "year", 
-    names_prefix = "DD_",
-    values_to = "dd_year")%>% 
-  mutate(year = as.integer(as.character(year)))
-
-dat<-left_join(dat, dd_temp, by = c("nhdid", "year")) %>% 
-  left_join(surface_temp, by = c("nhdid", "year"))
+dat<-left_join(dat, surface_temp, by = c("nhdid", "year"))
 
 ## standardize and transform predictor values ##
-#dat$z_order<-as.numeric(scale(log(dat$lake_order+0.001))) # min is 0 because these are the isolated
 dat$z_lake_area<-as.numeric(scale(log(dat$lake_area_m2))) #good 
 dat$z_max_depth<-as.numeric(scale(log(dat$maxdepth_m))) #good 
-dat$z_dd_year<-as.numeric(scale(log(dat$dd_year))) #good
 dat$z_surface_temp_year<-as.numeric(scale(log(dat$surf_temp_year))) #good 
 dat$z_secchi<-as.numeric(scale(log(dat$secchi_m)))
-dat$z_bottom_do<-as.numeric(scale(log(dat$bottom_do_mgl+ 0.001))) ##has 0s so added 0.001 
 dat$z_doy<-as.numeric(scale(dat$day_of_year)) ##standardize julian date 
 dat$z_ws_forest<-as.numeric(scale(asin(sqrt(dat$ws_forest_prop)))) #good
 dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat$ws_wetland_prop)))) #good
 
 dat$logeffort <- log(dat$effort_new)
 
-#not using wae/pike or DO but use all available Secchi! 
+# use all available Secchi! 
 dat<-dplyr::select(dat, new_key, fish_count_new, logeffort, gear2, FMU_Code, 
                    z_lake_area, z_max_depth, z_secchi, z_doy, 
                   z_surface_temp_year,
@@ -658,7 +643,7 @@ ggsave(plot=model2_hist_pred,
 #### RESIDUALS #### 
 #*Bayes-R2 using residuals
 #https://avehtari.github.io/bayes_R2/bayes_R2.html#2_Functions_for_Bayesian_R-squared_for_stan_glm_models
-ypred<-exp_catch_hist
+ypred<-predict_hist
 y<-plot_data$largemouthbass_sum
 
 e <- -1 * sweep(ypred, 2, y) #residual distribution 
@@ -698,4 +683,12 @@ plot_data  %>%
   geom_qq() +
   geom_qq_line()
 
-
+#read in years of sample
+hist_data_all<-read.csv("/Users/katelynking/Desktop/hist_data_model.csv") %>% 
+  select(new_key, begin_date_year)%>%
+  distinct(new_key, begin_date_year)
+hist_years<-left_join(plot_data, hist_data_all) %>% 
+  filter(!(new_key == "48-222" & begin_date_year == 1953)) #remove one duplicate 
+plot(hist_years$begin_date_year,hist_years$res.med)
+year_resid<-lm(res.med ~begin_date_year, hist_years)
+print(summary(year_resid))
