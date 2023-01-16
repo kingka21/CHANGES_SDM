@@ -691,4 +691,4 @@ hist_years<-left_join(plot_data, hist_data_all) %>%
   filter(!(new_key == "48-222" & begin_date_year == 1953)) #remove one duplicate 
 plot(hist_years$begin_date_year,hist_years$res.med)
 year_resid<-lm(res.med ~begin_date_year, hist_years)
-print(summary(year_resid))
+print(summary(year_resi))

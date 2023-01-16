@@ -76,6 +76,78 @@ nsim <- 3000
 chainLength <- output$BUGSoutput$n.sims
 ID = seq( 1 , chainLength , floor(chainLength/nsim) )
 
+################################################ 
+#### try to take the mean of differences #### 
+########################################################
+#get difference first, then average the difference 
+predictions_sim<- array(NA, c(nsim,length(dup_just_lake[[1]]))) # 2 dimensions - length of data as columns and sims as rows 
+dim(predictions_sim)
+hindcast<- array(NA, c(nsim,length(dup_just_lake[[1]]))) 
+dim(hindcast)
+changes <- array(NA, c(nsim,length(dup_just_lake[[1]])))
+dim(changes)
+
+for(i in 1:nsim ){  #loop over sims 
+  for(t in 1:length(dup_just_lake[[1]])){ #loop over covariate data (obs) #use regional mu.alphas instead of site specific
+    predictions_sim[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',dup_just_lake[['group']][t],']')] + coefs[ID[i], paste0('b1[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_secchi']][t]  + coefs[ID[i],paste0('b2[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_lake_area']][t]  + coefs[ID[i],paste0('b3[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_temp_mean_contemp']][t]  + 
+                                  coefs[ID[i],paste0('b4[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_max_depth']][t]  + coefs[ID[i],paste0('b5[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_forest']][t] + coefs[ID[i],paste0('b6[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_wetland']][t] + coefs[ID[i],paste0('b7[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['doy_median']][t] +
+                                  coefs[ID[i], paste0('logq[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['IND']][t] + dup_just_lake[['effort']][t]) # exp the predictions because we used a log-link in the negbi
+    
+    hindcast[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',dup_just_lake[['group']][t],']')] + coefs[ID[i], paste0('b1[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_secchi']][t]  + coefs[ID[i],paste0('b2[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_lake_area']][t]  + coefs[ID[i],paste0('b3[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_temp_mean_hist']][t]  + 
+                           coefs[ID[i],paste0('b4[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_max_depth']][t]  + coefs[ID[i],paste0('b5[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_forest']][t] + coefs[ID[i],paste0('b6[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_wetland']][t] + coefs[ID[i],paste0('b7[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['doy_median']][t] +
+                           coefs[ID[i], paste0('logq[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['IND']][t] + dup_just_lake[['effort']][t]) # exp the predictions because we used a log-link in the negbi
+    changes[i,t] <- predictions_sim[i,t] - hindcast[i,t]
+
+  }
+}
+
+
+#From this distribution, you can extract the median/mean and the 2.5% and 97.5% percentiles (95% credible interval),
+med <- apply(changes, 2, median ) #2 manipulation is performed on columns 
+means <- apply(changes, 2, mean )
+
+#prep data for plotting
+abund_data=data.frame(med, means) 
+abund_data$row <- as.numeric(row.names(abund_data))
+
+dup_just_lake$site <- as.numeric(as.factor(dup_just_lake$new_key))
+lake_ids<-dplyr::select(dup_just_lake, site, new_key) %>% 
+  mutate(row = row_number())
+change_abund_data<-left_join(abund_data, lake_ids)
+
+#add up the change in densities from all gears 
+sum_change_dens<-aggregate(change_abund_data$means, by=list(new_key=change_abund_data$new_key), FUN=sum) %>% 
+  rename(dens_change = x)
+
+#add temp change 
+just_lake<-dup_just_lake %>% 
+  distinct(new_key, .keep_all = TRUE) %>% #255 lakes 
+  mutate(z_temp_change = z_temp_mean_contemp - z_temp_mean_hist) %>% #pos means got warmer 
+  left_join(sum_change_dens, by="new_key") #pos change means increase in abund
+
+#*ggplot
+fig5a<-ggplot(just_lake, aes(x=dens_change)) +
+  geom_histogram() +
+  labs(x="estimated change in relative density", y = "frequency") + 
+  theme_bw() 
+
+fig5b<-ggplot(just_lake, aes(x=z_temp_change, y = dens_change )) + 
+  geom_point() + 
+  scale_color_gradient(low = "coral3", high = "darkgreen")  +
+  geom_hline(yintercept = 0, linetype = 'dashed')  + 
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  labs(x="temperature change (degC)", y = "change in estimated relative density") +
+  theme_bw()
+
+figure5<-cowplot::plot_grid(fig5a, fig5b, labels=c('a', 'b'))
+
+ggsave(plot=figure5, 
+       device = "png", 
+       filename = "figures/figure5.png", 
+       dpi = 600, height = 6, width = 12, units = "in",
+       bg="#ffffff") #sets background to white 
+
+
 #*current density estimates #### 
 predictions_sim<- array(NA, c(nsim,length(dup_just_lake[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
 dim(predictions_sim)
@@ -85,12 +157,11 @@ for(i in 1:nsim ){  #loop over sims
     predictions_sim[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',dup_just_lake[['group']][t],']')] + coefs[ID[i], paste0('b1[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_secchi']][t]  + coefs[ID[i],paste0('b2[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_lake_area']][t]  + coefs[ID[i],paste0('b3[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_temp_mean_contemp']][t]  + 
                                   coefs[ID[i],paste0('b4[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_max_depth']][t]  + coefs[ID[i],paste0('b5[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_forest']][t] + coefs[ID[i],paste0('b6[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_wetland']][t] + coefs[ID[i],paste0('b7[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['doy_median']][t] +
                                   coefs[ID[i], paste0('logq[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['IND']][t] + dup_just_lake[['effort']][t]) # exp the predictions because we used a log-link in the negbi
-    
   }
 }
 
 #From this distribution, you can extract the median/mean and the 2.5% and 97.5% percentiles (95% credible interval),
-med <- apply(predictions_sim, 2, median )
+med <- apply(predictions_sim, 2, median ) #2 manipulation is performed on columns 
 means <- apply(predictions_sim, 2, mean )
 
 #prep data for plotting
@@ -255,13 +326,29 @@ ggplot(abund_histogram, aes(x=log(mean), fill=time)) +
 
 
 #### changes in water temp of the lakes #### 
-just_lake<-dat %>% 
+just_lake<-dup_just_lake %>% 
   distinct(new_key, .keep_all = TRUE) %>% #255 lakes 
   mutate(temp_change = temp_mean_contemp - temp_mean_hist) %>% #pos means got warmer 
 left_join(abund_est, by="new_key") #pos change means increase in abund
 
 summary(just_lake$temp_change)
 
+# map temp change 
+p+ geom_point(data=just_lake, aes(x = LONG_DD.x, y = LAT_DD.x, colour = temp_change)) + 
+  scale_color_gradient(low = "darkblue", high = "coral3")  + #
+  labs(color="change in temp") +  #changes the labels on the legend
+  theme(legend.position = "bottom") + 
+  ylab(NULL) + xlab(NULL)
+
+#map temp change bi-nomial 
+just_lake<-just_lake %>% 
+  mutate(temp_bi = ifelse(temp_change >0, "increase", "decrease")) 
+p+ geom_point(data=just_lake, aes(x = LONG_DD.x, y = LAT_DD.x, colour = temp_bi)) + 
+  labs(color="change in temp") +  #changes the labels on the legend
+  theme(legend.position = "bottom") + 
+  ylab(NULL) + xlab(NULL)
+
+#compare temp to density 
 plot(just_lake$temp_change, just_lake$change, 
      xlab = "temperature change (degC)", ylab="projected change in relative density")
 abline(v = 0, h = 0, lty=2)
@@ -274,12 +361,12 @@ ggplot(just_lake, aes(x=change)) +
   labs(x="estimated change in relative density", y = "frequency") + 
   theme_bw() 
  
-ggplot(just_lake, aes(x=temp_change, y = change)) + 
+ggplot(just_lake, aes(x=temp_change, y = change, color = z_doy )) + 
   geom_point() + 
   scale_color_gradient(low = "coral3", high = "darkgreen")  +
   geom_hline(yintercept = 0, linetype = 'dashed')  + 
   geom_vline(xintercept = 0, linetype = 'dashed') +
-  labs(x="temperature change (degC)", y = "projected change in relative density") +
+  labs(x="temperature change (degC)", y = "change in estimated relative density") +
   theme_bw()
 
 ggsave(plot=fig5, 
