@@ -125,6 +125,9 @@ just_lake<-dup_just_lake %>%
   mutate(z_temp_change = z_temp_mean_contemp - z_temp_mean_hist) %>% #pos means got warmer 
   left_join(sum_change_dens, by="new_key") #pos change means increase in abund
 
+#save data 
+#write.csv(just_lake, "Data/output/density_temp_changes.csv", row.names=FALSE)
+
 #*ggplot
 fig5a<-ggplot(just_lake, aes(x=dens_change)) +
   geom_histogram() +
@@ -222,8 +225,9 @@ points<-read.csv("Data/MI_data/Humphries_table.csv") %>%
   dplyr::select( New_Key, LAT_DD, LONG_DD) %>%
   rename(new_key = New_Key) 
 
-hist_abund_map_dat<-left_join(hind_sum_dens, points)
-cont_abund_map_dat<-left_join(cont_sum_dens, points)
+hist_abund_map_dat<-left_join(hind_sum_dens, points) %>% 
+  left_join(just_lake) #add change in density 
+cont_abund_map_dat<-left_join(cont_sum_dens, points) 
 
 summary(log(hist_abund_map_dat$sum_dens))
 summary(log(cont_abund_map_dat$sum_dens ))
@@ -242,6 +246,7 @@ library(viridis)
 hist_map<-p+ geom_point(data=hist_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens))), size = 3) + 
   scale_color_viridis(direction = -1, limits = c(-1.2,4.2) )  + #
   labs(color="log relative density", tag = "a")  +#changes the labels on the legend 
+  theme_bw() + 
   theme(legend.position = "bottom", 
         plot.tag = element_text(), 
         plot.tag.position = c(0.1,0.95)) + 
@@ -259,8 +264,22 @@ cont_map<-p+ geom_point(data=cont_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, co
   ylab(NULL) + xlab(NULL)
 
 cont_map
+
+#map of change in density from hist to contemp 
+den_change_map<-p+ geom_point(data=hist_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(dens_change)), size = 3) +  #
+  scale_color_gradientn(
+    colours=colorRampPalette((RColorBrewer::brewer.pal(11,"PRGn")))(255),
+    values = c(1.0, (0-min(hist_abund_map_dat$dens_change))/(max(hist_abund_map_dat$dens_change)-min(hist_abund_map_dat$dens_change)),0)
+  ) + 
+  labs(color="density change", tag = "b") + #changes the labels on the legend 
+  theme_bw() + 
+  theme(legend.position = "bottom", 
+        plot.tag = element_text(), 
+        plot.tag.position = c(0.1,0.95)) + 
+  ylab(NULL) + xlab(NULL) 
+
 #* save as 2-panel plot 
-map_model2<-cowplot::plot_grid(hist_map, cont_map)
+map_model2<-cowplot::plot_grid(hist_map, den_change_map)
 map_model2
 
 ggsave(plot=map_model2, 
