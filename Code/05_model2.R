@@ -374,25 +374,25 @@ pred_plot<-ggplot()+
   xlab('predicted catch')+
   ylab('observed catch')+
   theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
-  geom_abline(intercept = 0, slope = 1)
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
 
 pred_plot+facet_wrap(~ gear2, ncol=2, scales = 'free') #allow scales to vary 
 
 #plot log scale 
-ggplot(data=plot_data, aes(x=log(col.means+1), y=log(fish_count_new + 1), xmax=log(upperCI.Group +1), xmin=log(lowerCI.Group +1) ) )+
+pred_plot_log<-ggplot(data=plot_data, aes(x=log(col.means+1), y=log(fish_count_new + 1), xmax=log(upperCI.Group +1), xmin=log(lowerCI.Group +1) ) )+
   geom_pointrange( color="grey" )+ 
   geom_point(color="black")+ 
   xlab('predicted catch (log)')+
   ylab('observed catch (log)')+
   theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
-  geom_abline(intercept = 0, slope = 1)
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
 
 model2_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
 model2_pred_obs
 
 ggsave(plot=model2_pred_obs, 
        device = "png", 
-       filename = "figures/model2_pred_obs.png", 
+       filename = "figures/fig2_model2_pred_obs.png", 
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white 
 

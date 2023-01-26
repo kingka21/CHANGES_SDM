@@ -1,6 +1,8 @@
 #### generate observed vs predicted plot with contemp and historical data #### 
 
 #use model 2 - better model 
+library(splitTools)
+library(dplyr)
 
 #####read in model output ####
 output<-readRDS("Data/output/output_model2_secchi_fold5_lakes.rds")
@@ -33,7 +35,7 @@ dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat$ws_wetland_prop)))) #good
 
 dat$logeffort <- log(dat$effort_new)
 
-#not using wae/pike or DO but use all available Secchi! 
+#use all available Secchi 
 dat<-dplyr::select(dat, new_key, fish_count_new, logeffort, gear2, FMU_Code, 
                    z_lake_area, z_max_depth, z_secchi, z_doy, 
                    z_surface_temp_year,
@@ -260,7 +262,7 @@ pred_plot_log<-ggplot(data=both_data, aes(x=log(col.means+1), y=log(fish_count_n
   theme_bw()+
   theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
   theme(legend.position = "bottom", legend.text=element_text(size=14)) +
-  geom_abline(intercept = 0, slope = 1)
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
 
 
 model2_hist_cont_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
@@ -268,6 +270,6 @@ model2_hist_cont_pred_obs
 
 ggsave(plot=model2_hist_cont_pred_obs, 
        device = "png", 
-       filename = "figures/model2_hist_cont_pred_obs.png", 
+       filename = "figures/fig7_hist_cont_pred_obs.png", 
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white 
