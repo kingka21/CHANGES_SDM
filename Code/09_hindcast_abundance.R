@@ -77,7 +77,7 @@ chainLength <- output$BUGSoutput$n.sims
 ID = seq( 1 , chainLength , floor(chainLength/nsim) )
 
 ################################################ 
-#### try to take the mean of differences #### 
+#### take the mean of differences #### 
 ########################################################
 #get difference first, then average the difference 
 predictions_sim<- array(NA, c(nsim,length(dup_just_lake[[1]]))) # 2 dimensions - length of data as columns and sims as rows 
@@ -119,101 +119,50 @@ change_abund_data<-left_join(abund_data, lake_ids)
 sum_change_dens<-aggregate(change_abund_data$means, by=list(new_key=change_abund_data$new_key), FUN=sum) %>% 
   rename(dens_change = x)
 
-#add temp change 
-just_lake<-dup_just_lake %>% 
-  distinct(new_key, .keep_all = TRUE) %>% #255 lakes 
-  mutate(z_temp_change = z_temp_mean_contemp - z_temp_mean_hist) %>% #pos means got warmer 
-  left_join(sum_change_dens, by="new_key") #pos change means increase in abund
-
-#save data 
-#write.csv(just_lake, "Data/output/density_temp_changes.csv", row.names=FALSE)
-
-#*ggplot
-fig5a<-ggplot(just_lake, aes(x=dens_change)) +
-  geom_histogram() +
-  labs(x="estimated change in relative density", y = "frequency") + 
-  theme_bw() 
-
-fig5b<-ggplot(just_lake, aes(x=z_temp_change, y = dens_change )) + 
-  geom_point() + 
-  scale_color_gradient(low = "coral3", high = "darkgreen")  +
-  geom_hline(yintercept = 0, linetype = 'dashed')  + 
-  geom_vline(xintercept = 0, linetype = 'dashed') +
-  labs(x="temperature change (degC)", y = "change in estimated relative density") +
-  theme_bw()
-
-figure5<-cowplot::plot_grid(fig5a, fig5b, labels=c('a', 'b'))
-
-ggsave(plot=figure5, 
-       device = "png", 
-       filename = "figures/figure5.png", 
-       dpi = 600, height = 6, width = 12, units = "in",
-       bg="#ffffff") #sets background to white 
-
-
-#*current density estimates #### 
-predictions_sim<- array(NA, c(nsim,length(dup_just_lake[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
-dim(predictions_sim)
-
-for(i in 1:nsim ){  #loop over sims 
-  for(t in 1:length(dup_just_lake[[1]])){ #loop over covariate data (obs) #use regional mu.alphas instead of site specific
-    predictions_sim[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',dup_just_lake[['group']][t],']')] + coefs[ID[i], paste0('b1[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_secchi']][t]  + coefs[ID[i],paste0('b2[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_lake_area']][t]  + coefs[ID[i],paste0('b3[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_temp_mean_contemp']][t]  + 
-                                  coefs[ID[i],paste0('b4[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_max_depth']][t]  + coefs[ID[i],paste0('b5[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_forest']][t] + coefs[ID[i],paste0('b6[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_wetland']][t] + coefs[ID[i],paste0('b7[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['doy_median']][t] +
-                                  coefs[ID[i], paste0('logq[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['IND']][t] + dup_just_lake[['effort']][t]) # exp the predictions because we used a log-link in the negbi
-  }
-}
-
+#*get means from contemporary 
 #From this distribution, you can extract the median/mean and the 2.5% and 97.5% percentiles (95% credible interval),
 med <- apply(predictions_sim, 2, median ) #2 manipulation is performed on columns 
-means <- apply(predictions_sim, 2, mean )
+mean_cont_dens <- apply(predictions_sim, 2, mean )
 
 #prep data for plotting
-abund_data=data.frame(med, means) 
-abund_data$row <- as.numeric(row.names(abund_data))
-abund_data$log_mean<-log(abund_data$means)
+dens_contemp=data.frame(mean_cont_dens) 
+dens_contemp$row <- as.numeric(row.names(dens_contemp))
 
 dup_just_lake$site <- as.numeric(as.factor(dup_just_lake$new_key))
 lake_ids<-dplyr::select(dup_just_lake, site, new_key) %>% 
   mutate(row = row_number())
-cont_abund_data<-left_join(abund_data, lake_ids)
+cont_abund_data<-left_join(dens_contemp, lake_ids)
 
-#add up the densities from all gears 
-cont_sum_dens<-aggregate(cont_abund_data$means, by=list(new_key=cont_abund_data$new_key), FUN=sum) %>% 
-  rename(sum_dens = x)
+#add dens across gears
+cont_sum_dens<-aggregate(cont_abund_data$mean_cont_dens, by=list(new_key=cont_abund_data$new_key), FUN=sum) %>% 
+  rename(sum_dens_cont = x)
 
-#*hindcast density estimates #### 
-#*#same as above just change the temperature to the historical temp data 
-hindcast<- array(NA, c(nsim,length(dup_just_lake[[1]]))) # 2 dimensions - length of data as rows and sims as columns 
-dim(hindcast)
-
-for(i in 1:nsim ){  #loop over sims 
-  for(t in 1:length(dup_just_lake[[1]])){ #loop over covariate data (obs) #use regional mu.alphas instead of site specific
-    hindcast[i,t] <- exp(coefs[ID[i],paste0('mu.alpha[',dup_just_lake[['group']][t],']')] + coefs[ID[i], paste0('b1[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_secchi']][t]  + coefs[ID[i],paste0('b2[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_lake_area']][t]  + coefs[ID[i],paste0('b3[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_temp_mean_hist']][t]  + 
-                                  coefs[ID[i],paste0('b4[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_max_depth']][t]  + coefs[ID[i],paste0('b5[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_forest']][t] + coefs[ID[i],paste0('b6[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['z_ws_wetland']][t] + coefs[ID[i],paste0('b7[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['doy_median']][t] +
-                                  coefs[ID[i], paste0('logq[',dup_just_lake[['gear_index']][t],']')]*dup_just_lake[['IND']][t] + dup_just_lake[['effort']][t]) # exp the predictions because we used a log-link in the negbi
-    
-  }
-}
-
-#From this distribution, you can extract the median/mean and the 2.5% and 97.5% percentiles (95% credible interval),
+#* get hindcast density estimates
 med <- apply(hindcast, 2, median )
-means <- apply(hindcast, 2, mean )
+mean_hist_dens <- apply(hindcast, 2, mean )
 
 #prep data for plotting
-hind_abund_data=data.frame(med, means) 
+hind_abund_data=data.frame(mean_hist_dens) 
 hind_abund_data$row <- as.numeric(row.names(hind_abund_data))
-hind_abund_data$log_mean<-log(hind_abund_data$means)
 
-dup_just_lake$site <- as.numeric(as.factor(dup_just_lake$new_key))
-lake_ids<-dplyr::select(dup_just_lake, site, new_key) %>% 
-  mutate(row = row_number())
 hindcast_data<-left_join(hind_abund_data, lake_ids)
 
 #add up the densities from all gears 
-hind_sum_dens<-aggregate(hindcast_data$means, by=list(new_key=hindcast_data$new_key), FUN=sum) %>% 
-  rename(sum_dens = x)
+hind_sum_dens<-aggregate(hindcast_data$mean_hist_dens, by=list(new_key=hindcast_data$new_key), FUN=sum) %>% 
+  rename(sum_dens_hist = x)
 
-##### map predicted abundance ####
+#* join everything together and add temp change 
+just_lake<-dup_just_lake %>% 
+  distinct(new_key, .keep_all = TRUE) %>% #255 lakes 
+  mutate(z_temp_change = z_temp_mean_contemp - z_temp_mean_hist) %>% #pos means got warmer 
+  left_join(sum_change_dens, by="new_key") %>% #pos change means increase in abund
+  left_join(hind_sum_dens) %>% 
+  left_join(cont_sum_dens)
+  
+#save data 
+#write.csv(just_lake, "Data/output/density_temp_changes.csv", row.names=FALSE)
+
+##### map and graph of predicted abundance Fig 5 ####
 library(ggmap)
 library(stringr)
 library(devtools)
@@ -225,14 +174,13 @@ points<-read.csv("Data/MI_data/Humphries_table.csv") %>%
   dplyr::select( New_Key, LAT_DD, LONG_DD) %>%
   rename(new_key = New_Key) 
 
-hist_abund_map_dat<-left_join(hind_sum_dens, points) %>% 
-  left_join(just_lake) #add change in density 
-cont_abund_map_dat<-left_join(cont_sum_dens, points) 
-
-summary(log(hist_abund_map_dat$sum_dens))
-summary(log(cont_abund_map_dat$sum_dens ))
-summary(hist_abund_map_dat$sum_dens)
-summary(cont_abund_map_dat$sum_dens)
+map_dat<-left_join(just_lake, points) 
+summary(log(map_dat$sum_dens_hist))
+summary(log(map_dat$sum_dens_cont ))
+summary(map_dat$sum_dens_hist)
+summary(map_dat$sum_dens_cont )
+summary(map_dat$dens_change )
+summary(map_dat$z_temp_change)
 
 #get MI basemap 
 MI_basemap<-map_data("state") %>%
@@ -240,14 +188,15 @@ MI_basemap<-map_data("state") %>%
 p<-ggplot(data = MI_basemap) + 
   geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black") + #this fill MI white and outline is black
   coord_fixed(1.3) 
+
 #map of lmb abund historical 
 #log
 library(viridis)
-hist_map<-p+ geom_point(data=hist_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens))), size = 3) + 
+hist_map<-p+ geom_point(data=map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens_hist))), size = 3) + 
   scale_color_viridis(direction = -1, limits = c(-1.2,4.2) )  + #
   labs(color="log relative density", tag = "a")  +#changes the labels on the legend 
   theme_bw() + 
-  theme(legend.position = "bottom", 
+  theme( legend.position = c(0.25,0.25),
         plot.tag = element_text(), 
         plot.tag.position = c(0.1,0.95)) + 
   ylab(NULL) + xlab(NULL)
@@ -255,7 +204,7 @@ hist_map
 
 #map of lmb abund contemporary 
 #log
-cont_map<-p+ geom_point(data=cont_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens))), size = 3) + 
+cont_map<-p+ geom_point(data=map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(log(sum_dens_cont))), size = 3) + 
   scale_color_viridis(direction = -1, limits = c(-1.2,4.2) )  + #
   labs(color="log relative density", tag = "b") +  #changes the labels on the legend
   theme(legend.position = "bottom", 
@@ -266,134 +215,61 @@ cont_map<-p+ geom_point(data=cont_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, co
 cont_map
 
 #map of change in density from hist to contemp 
-den_change_map<-p+ geom_point(data=hist_abund_map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(dens_change)), size = 3) +  #
+den_change_map<-p+ geom_point(data=map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(dens_change)), size = 3) +  #
   scale_color_gradientn(
     colours=colorRampPalette((RColorBrewer::brewer.pal(11,"PRGn")))(255),
-    values = c(1.0, (0-min(hist_abund_map_dat$dens_change))/(max(hist_abund_map_dat$dens_change)-min(hist_abund_map_dat$dens_change)),0)
+    values = c(1.0, (0-min(map_dat$dens_change))/(max(map_dat$dens_change)-min(map_dat$dens_change)),0)
   ) + 
   labs(color="density change", tag = "b") + #changes the labels on the legend 
   theme_bw() + 
-  theme(legend.position = "bottom", 
+  theme(legend.position = c(0.25,0.25),
         plot.tag = element_text(), 
         plot.tag.position = c(0.1,0.95)) + 
   ylab(NULL) + xlab(NULL) 
 
-#* save as 2-panel plot 
-map_model2<-cowplot::plot_grid(hist_map, den_change_map)
-map_model2
+temp_change_map<-p+ geom_point(data=map_dat, aes(x = LONG_DD, y = LAT_DD, colour = c(z_temp_change)), size = 3) +  #
+  scale_color_gradientn(
+    colours=colorRampPalette((RColorBrewer::brewer.pal(11,"RdBu")))(255),
+    values = c(1.0, (0-min(map_dat$z_temp_change))/(max(map_dat$z_temp_change)-min(map_dat$z_temp_change)),0)
+  ) + 
+  labs(color="temperature change", tag = "c") + #changes the labels on the legend 
+  theme_bw() + 
+  theme( legend.position = c(0.25,0.25),
+        plot.tag = element_text(), 
+        plot.tag.position = c(0.1,0.95)) + 
+  ylab(NULL) + xlab(NULL) 
 
-ggsave(plot=map_model2, 
+temp_dens_plot<-ggplot(map_dat, aes(x=z_temp_change, y = dens_change, color = z_lake_area )) + 
+  geom_point() + 
+  scale_color_viridis(direction = -1 ) +
+  #scale_color_gradient(low = "coral3", high = "darkgreen")  +
+  geom_hline(yintercept = 0, linetype = 'dashed')  + 
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  labs(x="temperature change (degC)", y = "change in estimated relative density", color = "lake area (scaled)", tag = "d") +
+  theme_bw() + 
+  theme( legend.position = c(0.80,0.25),
+        plot.tag = element_text(), 
+        plot.tag.position = c(0.13,0.95))
+
+#to to align plots 
+right_plots<-cowplot::plot_grid(den_change_map, temp_dens_plot, ncol=1, align="v", axis = "l")
+left_plots<-cowplot::plot_grid(hist_map, temp_change_map, ncol=1)
+figure5<-cowplot::plot_grid(left_plots, right_plots)
+
+ggsave(plot=figure5, 
        device = "png", 
-       filename = "figures/model2_map_abund.png", 
-       dpi = 600, height = 8, width = 12, units = "in",
+       filename = "figures/figure5.png", 
+       dpi = 600, height = 8, width = 8, units = "in",
        bg="#ffffff") #sets background to white 
 
-#save predicted abundance in each lake 
-#write.csv(hist_abund_map_dat, "Data/output/model2_hist_abund_pred.csv", row.names = FALSE)
-#write.csv(cont_abund_map_dat, "Data/output/model2_cont_abund_pred.csv", row.names = FALSE)
 
-#### look at changes in relative abundance #### 
-abund_est<-left_join(cont_abund_map_dat, hist_abund_map_dat, by = c("new_key")) %>% 
-  rename(dens_cont= sum_dens.x, dens_hist = sum_dens.y) %>% 
-  mutate(change = dens_cont - dens_hist, 
-         color = ifelse(change>0, "increase", "decrease")) 
+### HISTOGRAM
 
-plot(abund_est$change)
-
-p+ geom_point(data=abund_est, aes(x = LONG_DD.x, y = LAT_DD.x, colour = color)) + 
-  scale_color_manual(values= c("increase" = "darkgreen", 
-                               "decrease" =  'coral3') ) +
-                labs(color="density change") +  #changes the labels on the legend
-  theme(legend.position = "bottom") + 
-  ylab(NULL) + xlab(NULL) + 
-  theme_void()
-
-
-p+ geom_point(data=abund_est, aes(x = LONG_DD.x, y = LAT_DD.x, colour = change), size = 3) + 
-  scale_color_gradient(low = "coral3", high = "darkgreen")  + #
-  labs(color="change in density") +  #changes the labels on the legend
-  theme(legend.position = "bottom") + 
-  ylab(NULL) + xlab(NULL)
-
-plot(abund_est$change)
-hist(abund_est$change)
-plot(abund_est$LAT_DD.x,abund_est$change)
-
-
-### HISTOGRAMS ####
-#ggplot 
-cont_histogram<-cont_abund_map_dat %>% 
-  rename(mean= sum_dens) %>% 
-  select(new_key, mean) %>% 
-  mutate(time = "contemporary")
-
-hist_histogram<-hist_abund_map_dat %>% 
-  rename(mean= sum_dens) %>% 
-  select(new_key, mean) %>% 
-  mutate(time = "historical")
-
-abund_histogram<-rbind(cont_histogram, hist_histogram)
-
-
-ggplot(abund_histogram, aes(x=log(mean), fill=time)) +
-  geom_histogram(alpha=0.5, position="identity", aes(y = ..density..), color="black", bins = 10) +
-  labs(x="relative density (log)", y = "frequency") + 
-  scale_fill_manual(values=c("lightblue", "lightsalmon")) +
-  guides(fill=guide_legend(title='')) + 
-  theme(legend.position = c(0.9,0.8), legend.text=element_text(size=14), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
-  theme_bw() 
-
-
-#### changes in water temp of the lakes #### 
-just_lake<-dup_just_lake %>% 
-  distinct(new_key, .keep_all = TRUE) %>% #255 lakes 
-  mutate(temp_change = temp_mean_contemp - temp_mean_hist) %>% #pos means got warmer 
-left_join(abund_est, by="new_key") #pos change means increase in abund
-
-summary(just_lake$temp_change)
-
-# map temp change 
-p+ geom_point(data=just_lake, aes(x = LONG_DD.x, y = LAT_DD.x, colour = temp_change)) + 
-  scale_color_gradient(low = "darkblue", high = "coral3")  + #
-  labs(color="change in temp") +  #changes the labels on the legend
-  theme(legend.position = "bottom") + 
-  ylab(NULL) + xlab(NULL)
-
-#map temp change bi-nomial 
-just_lake<-just_lake %>% 
-  mutate(temp_bi = ifelse(temp_change >0, "increase", "decrease")) 
-p+ geom_point(data=just_lake, aes(x = LONG_DD.x, y = LAT_DD.x, colour = temp_bi)) + 
-  labs(color="change in temp") +  #changes the labels on the legend
-  theme(legend.position = "bottom") + 
-  ylab(NULL) + xlab(NULL)
-
-#compare temp to density 
-plot(just_lake$temp_change, just_lake$change, 
-     xlab = "temperature change (degC)", ylab="projected change in relative density")
-abline(v = 0, h = 0, lty=2)
-
-hist(just_lake$change,  xlab ="projected change in relative density", main = "")
-
-#*ggplot
-ggplot(just_lake, aes(x=change)) +
+ggplot(just_lake, aes(x=dens_change)) +
   geom_histogram() +
   labs(x="estimated change in relative density", y = "frequency") + 
   theme_bw() 
  
-ggplot(just_lake, aes(x=temp_change, y = change, color = z_doy )) + 
-  geom_point() + 
-  scale_color_gradient(low = "coral3", high = "darkgreen")  +
-  geom_hline(yintercept = 0, linetype = 'dashed')  + 
-  geom_vline(xintercept = 0, linetype = 'dashed') +
-  labs(x="temperature change (degC)", y = "change in estimated relative density") +
-  theme_bw()
-
-ggsave(plot=fig5, 
-       device = "png", 
-       filename = "figures/abund_histogram_fig7.png", 
-       dpi = 600, height = 8, width = 12, units = "in",
-       bg="#ffffff") #sets background to white 
-
 #map outliers 
 #new key 12-21
 new_1221<-filter(cont_abund_map_dat, new_key == "12-21")
