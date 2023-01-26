@@ -317,7 +317,7 @@ for(i in 1:nrow(plot_data)){ # loop over rows
   dev_resid_cont[i,1] = sign(plot_data[['fish_count_new']][i] - plot_data[['col.means']][i]) * sqrt(plot_data[['dev_means']][i])
 }
 
-write.csv(dev_resid_cont, "Data/output/model1_cont_res_dev_fold5.csv", row.names = FALSE)
+#write.csv(dev_resid_cont, "Data/output/model1_cont_res_dev_fold5.csv", row.names = FALSE)
 
 #old code 
 #likelihood <- data.frame(matrix(ncol=4, nrow =c(length(plot_data[[1]])) ) )
@@ -358,13 +358,14 @@ pred_plot_log<-ggplot(data=plot_data, aes(x=log(col.means +1), y=log(fish_count_
   xlab('predicted catch (log)')+
   ylab('observed catch (log)')+
   theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
-  geom_abline(intercept = 0, slope = 1)
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
 
 model_1_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
+model_1_pred_obs
 
 ggsave(plot=model_1_pred_obs, 
        device = "png", 
-       filename = "figures/model_1_pred_obs.png", 
+       filename = "figures/fig2_model_1_pred_obs.png", 
        dpi = 600, height = 8, width = 12, units = "in")
 
 
