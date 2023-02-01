@@ -2,7 +2,7 @@
 
 
 This repository contains the data and code that supports the manuscript currently under review at Global Change Biology: **Katelyn B.S. King, Henrique C. Giacomini, Kevin Wehrly, Hernán López-Fernández, Andrea K. Thomer, Karen M. Alofs.
-Using historical catch data to evaluate predicted changes in fish relative abundance in response to a warming climate**  
+Using historical catch data to evaluate predicted changes in fish relative abundance in response to a warming climate.**  
 
 The manuscript investigates if models built using spatial environmental gradients can reliably predict population changes through time in response to climate warming. We use largemouth bass abundance across Michigan lakes to validate hindcast. 
 
