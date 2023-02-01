@@ -8,25 +8,16 @@ library(PerformanceAnalytics)
 driver_vars<-read.csv("Data/contemp_lmb_dat.csv") %>% 
   distinct(new_key, .keep_all = TRUE)
 
-driver_nonas<-na.omit(driver_vars) # find out how many rows have all of the variables #371 
-
-my_data <- driver_vars[, c(8,10,13,14,25,27:37,46)] 
+my_data <- driver_vars[, c(8:14)] 
 PerformanceAnalytics::chart.Correlation(my_data, histogram=TRUE, pch=19)
  
-#pick dd or surface temp 
-my_data <- driver_vars[, c(8,10,25,29,32,35,42)] #surface temp year 
-PerformanceAnalytics::chart.Correlation(my_data, histogram=TRUE, pch=19)
-my_data <- driver_vars[, c(8,10,25,29,32,35,36)] #DD mean
-PerformanceAnalytics::chart.Correlation(my_data, histogram=TRUE, pch=19)
-
 #### plot drivers vs. response variables #### 
-my_data <- driver_vars[, c(5,8,10,25,29,32,35,42)] #surface temp year 
-par(mfrow = c(2,4)) #15 drivers 
+par(mfrow = c(2,4)) #
 #ggplot 
 x_axis_vars = names(my_data[,])
 for (i in 1:length(x_axis_vars)) {
   x_vars = x_axis_vars[i]
-  print(ggplot(my_data, aes(x=.data[[x_vars]], y= fish_count_new)) + 
+  print(ggplot(driver_vars, aes(x=.data[[x_vars]], y= fish_count_new)) + 
     geom_point() + 
       geom_smooth(method="lm") + 
       xlab(paste(x_vars))
@@ -38,7 +29,7 @@ for (i in 1:length(x_axis_vars)) {
 #### lake area distribution across gears #### 
 count_data<-read.csv("Data/contemp_lmb_dat.csv")
 
-ggplot(count_data, aes(x=log(lake_area_ha), color=gear2, linetype=gear2)) +
+ggplot(count_data, aes(x=log(lake_area_m2), color=gear2, linetype=gear2)) +
   geom_density() + 
   scale_linetype_manual(values=c("twodash", "dotted", "solid", "longdash"))+
   scale_color_manual(values=c('#000000','#E69F00', "#009E73","#56B4E9" )) + 
