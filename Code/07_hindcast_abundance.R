@@ -155,7 +155,7 @@ just_lake<-dup_just_lake %>%
 #save data 
 #write.csv(just_lake, "Data/output/density_temp_changes.csv", row.names=FALSE)
 
-##### map and graph of predicted abundance Fig 5 ####
+##### map and graph of predicted abundance Fig 4 ####
 library(ggmap)
 library(stringr)
 library(devtools)
@@ -247,11 +247,11 @@ temp_dens_plot<-ggplot(map_dat, aes(x=z_temp_change, y = dens_change, color = z_
 #to to align plots 
 right_plots<-cowplot::plot_grid(den_change_map, temp_dens_plot, ncol=1, align="v", axis = "l")
 left_plots<-cowplot::plot_grid(hist_map, temp_change_map, ncol=1)
-figure5<-cowplot::plot_grid(left_plots, right_plots)
+figure4<-cowplot::plot_grid(left_plots, right_plots)
 
-ggsave(plot=figure5, 
+ggsave(plot=figure4, 
        device = "png", 
-       filename = "figures/figure5.png", 
+       filename = "figures/figure4_maps.png", 
        dpi = 600, height = 8, width = 8, units = "in",
        bg="#ffffff") #sets background to white 
 

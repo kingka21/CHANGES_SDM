@@ -260,8 +260,8 @@ pred_plot_log<-ggplot(data=both_data, aes(x=log(col.means+1), y=log(fish_count_n
   xlab('predicted catch (log)')+
   ylab('observed catch (log)')+
   theme_bw()+
-  theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
-  theme(legend.position = "bottom", legend.text=element_text(size=14)) +
+  theme(panel.grid = element_blank(), axis.title = element_text(size=20), axis.text = element_text(size=18)) + 
+  theme(legend.position = "bottom", legend.text=element_text(size=20)) +
   geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
 
 
@@ -270,6 +270,6 @@ model2_hist_cont_pred_obs
 
 ggsave(plot=model2_hist_cont_pred_obs, 
        device = "png", 
-       filename = "figures/fig7_hist_cont_pred_obs.png", 
+       filename = "figures/fig6_hist_cont_pred_obs.png", 
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white 

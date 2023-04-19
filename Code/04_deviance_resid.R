@@ -52,13 +52,15 @@ dev_res<-ggplot(dev_res_histogram, aes(x=deviance_res, fill=time)) +
   labs(x="deviance residuals", y = "frequency") + 
   scale_fill_manual(values=c("lightblue", "lightsalmon")) +
   guides(fill=guide_legend(title='')) + 
-  theme(legend.position = c(0.9,0.8), legend.text=element_text(size=14), axis.title = element_text(size=16), axis.text = element_text(size=14)) +
-  theme_bw()
+  theme_bw() +
+  theme(legend.position = c(0.85,0.8), legend.text=element_text(size=20),
+  axis.title = element_text(size=20), axis.text = element_text(size=18)) 
+
 dev_res
 
 ggsave(plot=dev_res, 
        device = "png", 
-       filename = "figures/fig6_dev_res_histogram.png", 
+       filename = "figures/fig5_dev_res_histogram.png", 
        dpi = 600, height = 8, width = 12, units = "in",
        bg="#ffffff") #sets background to white
 
