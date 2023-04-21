@@ -114,7 +114,8 @@ fyke_plot<-dwplot(fyke, style = "dotwhisker",
   xlab("Estimated effect") + ylab("Covariate") +
   ggtitle("fyke") + 
   theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none")
+  theme(legend.position = "none") + 
+  labs(tag = "b") 
 fyke_plot
 
 gill_plot<-dwplot(gill, style = "dotwhisker", 
@@ -165,9 +166,10 @@ fyke_dist<-model1tranformed %>%
   ggdist::stat_halfeye(.width = c(.05, .95)) + 
   theme_bw() +
   ggtitle("fyke net") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none") +
-  ylab("predictor")
+  theme(plot.title = element_text(hjust = 0.5, size=20), plot.tag = element_text(face="bold")) + 
+  theme(legend.position = "none", axis.title = element_text(size=20), axis.text = element_text(size=18)) +
+  ylab("predictor") + 
+  labs(y=NULL,tag = "b") 
 
 gill_dist<-model1tranformed %>%
   filter(grepl("b.*[2]",Parameter))%>% #use .* as a wild card to capture all 10 params
@@ -179,9 +181,10 @@ gill_dist<-model1tranformed %>%
   ggdist::stat_halfeye(.width = c(.05, .95)) + 
   theme_bw() +
   ggtitle("gill net") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none") +
-  ylab("predictor")
+  theme(plot.title = element_text(hjust = 0.5, size=20), plot.tag = element_text(face="bold")) + 
+  theme(legend.position = "none", axis.title = element_text(size=20), axis.text = element_text(size=18)) +
+  ylab("predictor") + 
+  labs(y=NULL, tag = "c") 
 
 
 seine_dist<-model1tranformed %>%
@@ -194,9 +197,10 @@ seine_dist<-model1tranformed %>%
   ggdist::stat_halfeye(.width = c(.10, .90)) + 
   theme_bw() +
   ggtitle("seine") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none") +
-  ylab("predictor")
+  theme(plot.title = element_text(hjust = 0.5, size=20), plot.tag = element_text(face="bold")) + 
+  theme(legend.position = "none", axis.title = element_text(size=20), axis.text = element_text(size=18)) +
+  ylab("predictor") + 
+  labs(y=NULL, tag = "d") 
 
 
 shock_dist<-model1tranformed %>%
@@ -209,15 +213,33 @@ shock_dist<-model1tranformed %>%
   ggdist::stat_halfeye(.width = c(.10, .90)) + 
   theme_bw() +
   ggtitle("shock") + 
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.position = "none") +
-  ylab("predictor")
+  theme(plot.title = element_text(hjust = 0.5, size=20), plot.tag = element_text(face="bold")) + 
+  theme(legend.position = "none", axis.title = element_text(size=20), axis.text = element_text(size=18)) +
+  ylab("predictor") + 
+  labs(y=NULL, tag = "e") 
 
 #* save as 4-panel plot 
-model2_covariates<-cowplot::plot_grid(fyke_dist, gill_dist, seine_dist, shock_dist, labels=c("a", "b", "c", "d"), ncol=2)
+model2_covariates<-cowplot::plot_grid(fyke_dist, gill_dist, seine_dist, shock_dist, ncol=2)
 
 ggsave(plot=model2_covariates, 
        device = "png", 
-       filename = "figures/fig4.png", 
+       filename = "figures/fig3b.png", 
        dpi = 600, height = 8, width = 12, units = "in",
+       bg="#ffffff") #sets background to white 
+
+
+#try to combine two figures 
+
+library(cowplot)
+all<-cowplot::ggdraw() + 
+  draw_plot(model_1_covariates, x=0, y=0, width = .3, height=1) + 
+  draw_plot(fyke_dist, x=.3, y=.5, width = .35, height=.5) + 
+  draw_plot(gill_dist, x=.65, y=.5, width = .35, height=.5) + 
+  draw_plot(seine_dist, x=.3, y=0, width = .35, height=.5) + 
+  draw_plot(shock_dist, x=.65, y=0, width = .35, height=.5)  
+
+ggsave(plot=all, 
+       device = "png", 
+       filename = "figures/fig3_all.png", 
+       dpi = 600, height = 8, width = 18, units = "in",
        bg="#ffffff") #sets background to white 

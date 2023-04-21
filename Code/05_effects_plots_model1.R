@@ -2,6 +2,8 @@
 
 #*load library
 library(dotwhisker)
+library(MCMCpack)
+library(ggmcmc) 
 
 ####read in model output ####
 output<-readRDS("Data/output/output_model1_secchi_fold3_lakes.rds")
@@ -47,12 +49,13 @@ model_1_covariates<-model1tranformed %>%
   scale_fill_manual(values= c("gray80", "skyblue")) +
   ggdist::stat_halfeye(.width = c(.05, .95)) + 
   theme_bw() + 
-  theme(legend.position = "none") +
-  ylab("predictor")
+  theme(legend.position = "none", axis.title = element_text(size=20), axis.text = element_text(size=18), plot.tag = element_text(face="bold")) + 
+  ylab("predictor")+ 
+  labs(tag = "a") 
 
 ggsave(plot=model_1_covariates, 
        device = "png", 
-       filename = "figures/fig3.png", 
+       filename = "figures/fig3a.png", 
        dpi = 600, height = 8, width = 5, units = "in")
 
 #### other stats ####

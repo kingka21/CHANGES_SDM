@@ -265,7 +265,8 @@ pred_plot_log<-ggplot(data=both_data, aes(x=log(col.means+1), y=log(fish_count_n
   geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
 
 
-model2_hist_cont_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
+model2_hist_cont_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') + #allow scales to vary 
+  theme(strip.text = element_text(size=20)) 
 model2_hist_cont_pred_obs
 
 ggsave(plot=model2_hist_cont_pred_obs, 

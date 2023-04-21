@@ -34,7 +34,6 @@ dat$z_lake_area<-as.numeric(scale(log(dat$lake_area_m2)))
 dat$z_max_depth<-as.numeric(scale(log(dat$maxdepth_m))) 
 dat$z_surface_temp_year<-as.numeric(scale(log(dat$surf_temp_year))) 
 dat$z_secchi<-as.numeric(scale(log(dat$secchi_m)))
-dat$z_bottom_do<-as.numeric(scale(log(dat$bottom_do_mgl+ 0.001))) ##has 0s so added 0.001 
 dat$z_doy<-as.numeric(scale(dat$day_of_year)) ##standardize doy date 
 dat$z_ws_forest<-as.numeric(scale(asin(sqrt(dat$ws_forest_prop)))) 
 dat$z_ws_wetland<-as.numeric(scale(asin(sqrt(dat$ws_wetland_prop)))) 
@@ -328,10 +327,12 @@ pred_plot_log<-ggplot(data=plot_data, aes(x=log(col.means +1), y=log(fish_count_
   geom_point(color="black")+
   xlab('predicted catch (log)')+
   ylab('observed catch (log)')+
-  theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
+  theme_bw()+
+  theme(panel.grid = element_blank(), axis.title = element_text(size=20), axis.text = element_text(size=18)) + 
   geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
 
-model_1_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
+model_1_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') + #allow scales to vary 
+                    theme(strip.text = element_text(size=20)) 
 model_1_pred_obs
 
 ggsave(plot=model_1_pred_obs, 

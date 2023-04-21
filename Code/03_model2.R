@@ -383,11 +383,12 @@ pred_plot_log<-ggplot(data=plot_data, aes(x=log(col.means+1), y=log(fish_count_n
   geom_point(color="black")+ 
   xlab('predicted catch (log)')+
   ylab('observed catch (log)')+
-  theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=16), axis.text = element_text(size=14)) + 
+  theme_bw()+theme(panel.grid = element_blank(), axis.title = element_text(size=20), axis.text = element_text(size=18)) + 
   geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
 
-model2_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') #allow scales to vary 
-model2_pred_obs
+model2_pred_obs<-pred_plot_log+facet_wrap(~ gear, ncol=2, scales = 'free') + #allow scales to vary 
+          theme(strip.text = element_text(size=20)) 
+  model2_pred_obs
 
 ggsave(plot=model2_pred_obs, 
        device = "png", 
