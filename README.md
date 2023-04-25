@@ -1,5 +1,5 @@
 # CHANGES_SDM
-
+[![DOI](https://zenodo.org/badge/362577484.svg)](https://zenodo.org/badge/latestdoi/362577484)
 
 This repository contains the data and code that supports the manuscript: **Katelyn B.S. King, Henrique C. Giacomini, Kevin Wehrly, Hernán López-Fernández, Andrea K. Thomer, Karen M. Alofs.
 Using historical catch data to evaluate predicted changes in fish relative abundance in response to a warming climate.**  
