@@ -1,0 +1,11 @@
+cff-version: 1.1.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Katelyn
+    given-names: King
+    orcid: https://orcid.org/0000-0001-5471-842X
+title: Code and data for using historical catch data to evaluate predicted changes in fish relative abundance in response to a warming climate
+version: v1.0
+doi: 10.5281/zenodo.7864637
+date-released: 2023-04-25
+url: "https://doi.org/10.5281/zenodo.7864637"
